@@ -61,3 +61,6 @@ python taishin_preview.py --day-trade Y --symbol 2330 --lots 2
 
 - [原作者與目前參數對照（167 欄）](PARAMETERS_GUIDE.md)
 - [期貨模擬連線準備與所需資料](FUTURES_PREPARATION.md)
+
+
+期貨登入驗收入口：雙擊 Launch_FUTURES_VALIDATION.cmd，再開 http://127.0.0.1:8790/ 。可選驗證／正式唯讀登入，兩者都沒有送單。實際 SDK 與 32 位元 runtime 已在本機交付；來源 ZIP 不包含 runtime。請先閱讀 FUTURES_PREPARATION.md 的限制。

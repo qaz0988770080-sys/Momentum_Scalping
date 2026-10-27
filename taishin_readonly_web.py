@@ -19,8 +19,11 @@ EXPECTED_WORKER_BUILD = "readonly-20261028-r4"
 PREFIX = "@@MOMENTUM_READONLY@@"
 
 class WorkerBridge:
-    def __init__(self, root):
+    def __init__(self, root, *, interpreter=None, worker_script="taishin_readonly_worker.py", worker_build=None):
         self.root = Path(root)
+        self.interpreter = interpreter or sys.executable
+        self.worker_script = worker_script
+        self.expected_worker_build = worker_build
         self.lock = threading.RLock()
         self.process = None
         self.messages = queue.Queue()
@@ -38,7 +41,7 @@ class WorkerBridge:
         self.worker_build = None
         self.messages = queue.Queue()
         process = subprocess.Popen(
-            [sys.executable, "-u", str(self.root / "taishin_readonly_worker.py"),
+            [self.interpreter, "-u", str(self.root / self.worker_script),
              "--sdk-root", str(self.root / "vendor"), "--parent-pid", str(os.getpid())],
             cwd=self.root, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, text=True, encoding="utf-8",
@@ -57,7 +60,7 @@ class WorkerBridge:
         try:
             result = messages.get(timeout=5)
             if (result.get("kind") != "ready"
-                    or result.get("worker_build") != EXPECTED_WORKER_BUILD):
+                    or result.get("worker_build") != (self.expected_worker_build or EXPECTED_WORKER_BUILD)):
                 raise RuntimeError("READONLY_WORKER_START_FAILED")
             self.worker_build = result["worker_build"]
         except Exception:
@@ -123,7 +126,7 @@ class WorkerBridge:
         with self.lock:
             self._stop()
 
-def make_handler(root, bridge):
+def make_handler(root, bridge, page_name="taishin_readonly.html"):
     root = Path(root)
     session = secrets.token_urlsafe(32)
     csrf = secrets.token_urlsafe(32)
@@ -166,7 +169,7 @@ def make_handler(root, bridge):
             if not self.host_ok():
                 return self.respond(403, dict(error="HOST_NOT_ALLOWED"))
             if self.path == "/":
-                page = (root / "taishin_readonly.html").read_text(encoding="utf-8")
+                page = (root / page_name).read_text(encoding="utf-8")
                 page = page.replace("__NONCE__", nonce).replace("__CSRF__", csrf)
                 return self.respond(200, page, html=True, set_cookie=True)
             if not self.authorized():

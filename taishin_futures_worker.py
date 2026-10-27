@@ -1,0 +1,63 @@
+"""One validation login per isolated 32-bit process, no trading commands."""
+import argparse,json,os,sys
+from pathlib import Path
+from datetime import datetime,timezone
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+from taishin_futures_validation import ValidationSession,FuturesLoginError,BUILD
+PREFIX='@@MOMENTUM_READONLY@@'
+def main():
+    parser=argparse.ArgumentParser();parser.add_argument('--sdk-root');parser.add_argument('--parent-pid',type=int);args=parser.parse_args()
+    protocol=os.dup(sys.stdout.fileno());null=os.open(os.devnull,os.O_WRONLY)
+    os.dup2(null,1);os.dup2(null,2);os.close(null)
+    root=Path(__file__).resolve().parent;private=root/'private'/'futures';private.mkdir(parents=True,exist_ok=True);os.chdir(private)
+    if args.parent_pid and os.name=='nt':
+        def watch():
+            import ctypes
+            from ctypes import wintypes
+            kernel=ctypes.WinDLL('kernel32',use_last_error=True)
+            kernel.OpenProcess.argtypes=[wintypes.DWORD,wintypes.BOOL,wintypes.DWORD]
+            kernel.OpenProcess.restype=wintypes.HANDLE
+            kernel.WaitForSingleObject.argtypes=[wintypes.HANDLE,wintypes.DWORD]
+            handle=kernel.OpenProcess(0x100000,False,args.parent_pid)
+            if not handle:os._exit(0)
+            while kernel.WaitForSingleObject(handle,1000)==258:pass
+            os._exit(0)
+        import threading
+        threading.Thread(target=watch,daemon=True).start()
+    session=ValidationSession()
+    def emit(kind,**values):
+        result=dict(kind=kind,worker_build=BUILD,readonly=True,live_enabled=False,order_enabled=False,**values)
+        os.write(protocol,(PREFIX+json.dumps(result)+'\n').encode())
+    emit('ready')
+    for raw in sys.stdin:
+        command={};action=''
+        try:
+            if len(raw)>8192:raise FuturesLoginError('COMMAND_TOO_LARGE')
+            command=json.loads(raw);raw=''
+            if not isinstance(command,dict):raise FuturesLoginError('INVALID_COMMAND')
+            action=command.get('cmd')
+            if action=='logout':emit('logout',ok=True,connected=False);break
+            if action!='login':raise FuturesLoginError('FUTURES_LOGIN_ONLY')
+            username=command.pop('username','');password=command.pop('password','')
+            try:
+                if not isinstance(username,str) or not username.strip() or not isinstance(password,str) or not password:
+                    raise FuturesLoginError('MISSING_CREDENTIALS')
+                result=session.login(username.strip(),password,command.get('environment'))
+            finally:username=password=''
+            result.pop('readonly',None);result.pop('live_enabled',None);result.pop('order_enabled',None)
+            emit('login',**result)
+            evidence=dict(ok=True,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
+        except Exception as exc:
+            code=str(exc) if isinstance(exc,FuturesLoginError) else 'FUTURES_SDK_'+type(exc).__name__
+            evidence=dict(ok=False,error=code,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
+            emit('error',ok=False,connected=False,error=code,diagnostics=evidence)
+            break
+        finally:
+            if isinstance(command,dict):command.clear()
+            raw=''
+        (private/'readiness.json').write_text(json.dumps(evidence),encoding='utf-8')
+    if 'evidence' in locals():(private/'readiness.json').write_text(json.dumps(evidence),encoding='utf-8')
+    # Native SDK can leave non-daemon threads; parent process isolation is intentional.
+    # Exit closes connections without calling an unbounded Disconnect before the response.
+    os.close(protocol);os._exit(0)
+if __name__=='__main__':main()

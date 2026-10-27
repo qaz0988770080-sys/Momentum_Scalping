@@ -24,7 +24,7 @@ def main():
                                      error=value.get("error"))
             except Exception as exc:
                 results[name] = dict(ok=False, error=type(exc).__name__ + ": " + str(exc))
-        suite = unittest.defaultTestLoader.loadTestsFromNames(["test_taishin_adapter", "test_taishin_readonly", "test_taishin_web", "test_taishin_journal"])
+        suite = unittest.defaultTestLoader.loadTestsFromNames(["test_taishin_adapter", "test_taishin_readonly", "test_taishin_web", "test_taishin_journal", "test_taishin_futures"])
         run = unittest.TextTestRunner(verbosity=1).run(suite)
         results["taishin_adapter"] = dict(ok=run.wasSuccessful(), tests=run.testsRun)
     finally:
