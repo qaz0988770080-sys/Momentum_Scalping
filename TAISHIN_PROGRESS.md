@@ -1,28 +1,31 @@
 # 台新獨立專案進度 — 2026-10-27（台灣時間）
 
-目標：2026-11-02 起的下一週可使用；此為目標，尚未通過正式上線驗收。
+專案：qaz0988770080-sys/Momentum_Scalping
+開發分支：codex/taishin-standalone-adapter
+草稿 PR：https://github.com/qaz0988770080-sys/Momentum_Scalping/pull/1
+前一階段 commit：665f03541565d1e4e07856e2dfcda1f065cd16e4
 
-來源：qaz0988770080-sys/Momentum_Scalping
-基準 commit：1dea51bf2592d1e0ffa88b3faf97b267c2756d6d
-範圍：只在 Momentum 專案改動，不更動金融助理／AlphaDesk。
+本階段加入獨立唯讀 SDK worker、Tk 與本機網頁、明確庫存查詢完成判定、舊世代回呼隔離、
+Host/Origin/CSRF 防護、可見服務啟動器、去識別連線診斷，以及持久化意圖與券商標記映射基礎。
+未引用金融助理／AlphaDesk 的程式、資料庫、帳密或登入工作階段。
+本機另行複製官方 SDK 與通用依賴到獨立 vendor；這些檔案不進 GitHub 或來源交付包。
 
-本階段完成交易邊界、參數轉換、累計成交回報防重複及離線啟動入口。
-離線預覽驗證：2330、兩張、買進、ROD、當沖 Y → qty=2000 股；送單次數為零。
-回歸結果：新增 17 個 unittest 通過；原 Gateway/Market/Scanner/Intraday/Trading/Runtime 自我檢查共 120 項通過。
-測試命令：python run_offline_checks.py
-Windows 沙箱 Temp 清理曾遭拒；測試入口將測試目錄保留在專案 .test-artifacts，重新完整執行通過。
-這些是離線驗證，不能當成券商登入、送單、成交、對帳或部署成功的證據。
+驗證：
+- python run_offline_checks.py：58 項 unittest + 原六模組 120 項自我檢查通過。
+- 網頁 JavaScript 語法檢查通過。
+- taishin_readonly_ui.py --smoke-test：程序就緒、登入按鈕、查詢停用及子程序存活檢查通過。
+- taishin_readonly_worker.py --sdk-root vendor --check-sdk：獨立 SDK 載入成功，沒有建立登入或送單。
+- 回歸測試發現 Windows 拒絕 HTTP 請求時未讀完 body 可能重設連線；已改成有界讀取後回應，重新完整測試通過。
 
-真實券商證據：本次沒有登入、查詢或送單；沒有讀取帳密、憑證、私人資料庫或原始交易日誌。
-發現：現有 SDK 的 QryRepAll/QryRepDeal 實作是本機 orderReportDict 快取讀取。
-重要缺口：缺少經驗證的委託回補完成證據與庫存查詢完成判定，不能宣告全帳戶狀態完整。
+真實操作證據與限制：
+- 使用者手動執行服務，顯示 starting 與 URL；瀏覽器仍逾時，尚未看到登入頁。
+- 開發環境 AppContainer=true；同程序 HTTP 回環 200，但連桌面服務逾時。
+- 已交付 Check_LOCAL_WEB.cmd，等待使用者桌面上的連線診斷，不能把開發隔離直接歸因於使用者防火牆。
+- 沒有取得真實台新登入、庫存、委託、成交或完整對帳證據；正式交易仍未啟用。
+- 意圖紀錄已離線測試，但仍未與真實交易 transport 整合。
+- 現有 SDK 的委託／成交查詢為快取觀測，仍缺可靠的回補完成證據。
+- 桌面操作工具禁止啟動命令提示字元；需使用者手動執行已準備的診斷啟動檔，不變更系統安全設定。
 
-建議驗收安排（依實測調整）：
-- 10/28–10/29：完成獨立 worker、登入與完整查詢判定；僅只讀連線。
-- 10/30：驗證環境端到端，確認股數、當沖、撤單、部分成交、斷線及拒單。
-- 10/31–11/01：處理缺陷、打包、重啟與恢復演練。
-- 11/02：只有上述驗收通過，才進入限額正式試運行；未通過則維持模擬／只讀。
-
-以上尚未建立排程或自動背景開發任務。剩餘工作與上線條件詳見 README。
-
-GitHub 同步：使用者更新儲存庫授權後，已成功建立 codex/taishin-standalone-adapter 分支；本階段來源同步至該分支，維持草稿狀態，尚未合併或部署。
+目標：使用者希望本週（10/27–10/30）或下週前使用。
+可用程度以實際端到端驗收為準；目前為唯讀驗收開發版，尚非正式自動交易版。
+下一步：定位瀏覽器可達性 → 真實唯讀登入與庫存 → 回補／可賣量 → 驗證環境下單生命週期。

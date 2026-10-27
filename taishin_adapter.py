@@ -4,7 +4,11 @@ from dataclasses import asdict, dataclass
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 import re
+import hashlib
 from typing import Mapping
+
+def broker_tag(identity):
+    return "MS" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:30]
 
 class MappingError(ValueError):
     pass
@@ -37,7 +41,7 @@ class TaishinOrder:
                     tradingUnit="COMMON", qty=str(self.quantity_shares),
                     orderType=self.time_in_force, tradingType="CUSTODY",
                     dayTradeFlag=self.day_trade_flag, tradingAccount=self.account,
-                    userDef=self.intent_id)
+                    userDef=broker_tag(self.intent_id))
 
     def public_preview(self):
         fields = self.sdk_fields()
@@ -67,9 +71,9 @@ def from_cts_request(request, *, day_trade_flag):
     identity = str(r.get("order_intent_id") or r.get("registry_key") or "")
     if not re.fullmatch(r"[A-Za-z0-9]{4,8}", symbol) or not account.strip():
         raise MappingError("invalid symbol/account")
-    # Keep a stable unique upstream intent; never truncate identities.
-    if not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", identity):
-        raise MappingError("intent must be 1..32 ASCII letters/digits/_/-")
+    # Preserve full upstream intent; a durable journal maps the 32-character broker tag.
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", identity):
+        raise MappingError("intent must be 1..128 ASCII letters/digits/_/-")
     day = str(r.get("trade_date") or "")
     try:
         if len(day) != 8:
@@ -169,10 +173,11 @@ class TaishinClient:
     """Gateway compatibility boundary. Real submission deliberately unavailable."""
     submission_audit_supported = False
 
-    def __init__(self, *, mode="OFFLINE", day_trade_flag=None):
+    def __init__(self, *, mode="OFFLINE", day_trade_flag=None, readonly_session=None):
         self.mode = mode
         self.day_trade_flag = day_trade_flag
         self.ledger = OrderLedger()
+        self.readonly_session = readonly_session
 
     def preview_order(self, request):
         return from_cts_request(request, day_trade_flag=self.day_trade_flag).public_preview()
@@ -190,6 +195,10 @@ class TaishinClient:
                     preview=preview)
 
     def status(self):
+        if self.readonly_session is not None:
+            state = self.readonly_session.status()
+            return dict(**state, broker="TAISHIN_CORE", connection_health="READ_ONLY",
+                        account_id="", security_account_ids=[])
         return dict(broker="TAISHIN_CORE", connected=False,
                     connection_health="NOT_VERIFIED", live_enabled=False,
                     account_id="", security_account_ids=[], last_error="")
@@ -199,7 +208,72 @@ class TaishinClient:
                     not_submitted=True, broker_submit_attempt=False,
                     parsed_result=[], normalized_result=[])
 
-    login = query_order = query_match = query_position = _unavailable
+    
+    def attach_readonly(self, session):
+        """Explicit dependency injection. Never discover another app's sessions."""
+        self.readonly_session = session
+
+    def login(self, uid="", password="", **kwargs):
+        if self.readonly_session is None:
+            return self._unavailable()
+        try:
+            return self.readonly_session.login(uid, password, kwargs.get("environment", "formal"))
+        except Exception:
+            self.readonly_session.logout()
+            return dict(ok=False, connected=False, error="TAISHIN_READONLY_LOGIN_FAILED")
+
+    def _account_index(self, account_id):
+        session = self.readonly_session
+        if session is None or not session.ready():
+            raise MappingError("READONLY_SESSION_NOT_READY")
+        matches = [i for i, account in enumerate(session.accounts) if account == account_id]
+        if len(matches) != 1:
+            raise MappingError("READONLY_ACCOUNT_MISMATCH")
+        return matches[0]
+
+    def query_order(self, account_id, force_query=True):
+        if self.readonly_session is None:
+            return self._unavailable()
+        try:
+            return self.readonly_session.reports(self._account_index(account_id))
+        except Exception:
+            return dict(ok=False, complete=False, error="TAISHIN_ORDER_OBSERVATION_FAILED",
+                        parsed_result=[])
+
+    def query_match(self, account_id, force_query=True):
+        if self.readonly_session is None:
+            return self._unavailable()
+        try:
+            return self.readonly_session.reports(self._account_index(account_id), matches_only=True)
+        except Exception:
+            return dict(ok=False, complete=False, error="TAISHIN_MATCH_OBSERVATION_FAILED",
+                        normalized_result=[])
+
+    def query_position(self, account_id, trade_date, force_query=True):
+        if self.readonly_session is None:
+            return self._unavailable()
+        try:
+            from datetime import datetime, timedelta, timezone
+            today = datetime.now(timezone(timedelta(hours=8))).strftime("%Y%m%d")
+            if str(trade_date) != today:
+                raise MappingError("ONLY_CURRENT_DAY_INVENTORY_SUPPORTED")
+            result = self.readonly_session.inventory(self._account_index(account_id))
+            if result.get("ok") is not True or result.get("complete") is not True:
+                raise MappingError("INVENTORY_NOT_COMPLETE")
+            # CTS compatibility: F3 is SHARES here. Do not apply the order's lots conversion.
+            rows = []
+            for row in result["rows"]:
+                qty = integer(row["quantity_shares"], "quantity_shares")
+                odd = integer(row["odd_shares"], "odd_shares")
+                if odd or integer(row["credit_shares"], "credit_shares") or integer(row["debit_shares"], "debit_shares"):
+                    raise MappingError("NON_CASH_OR_ODD_INVENTORY_NOT_MAPPED")
+                rows.append(dict(F0="0", F1=row["symbol"], F3=str(qty),
+                                 sellable_confirmed=False))
+            return dict(**result, parsed_result=rows)
+        except Exception:
+            return dict(ok=False, complete=False, error="TAISHIN_INVENTORY_NOT_VERIFIED",
+                        parsed_result=[])
+
     modify_order = cancel_order = _unavailable
 
     def has_inflight_order(self, key):
@@ -210,6 +284,8 @@ class TaishinClient:
         return []
 
     def logout(self):
+        if self.readonly_session is not None:
+            self.readonly_session.logout()
         return dict(ok=True, errors=[])
 
     def configure_anomaly_log(self, directory):

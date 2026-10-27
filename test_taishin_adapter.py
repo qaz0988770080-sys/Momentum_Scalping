@@ -42,7 +42,7 @@ class AdapterTests(unittest.TestCase):
                         dict(trade_type=1), dict(order_type=2), dict(price_type=0),
                         dict(price="NaN"), dict(price="1"), dict(condition=3),
                         dict(trade_date=20260230), dict(order_intent_id=""),
-                        dict(order_intent_id="a" * 33), dict(pay_type=1),
+                        dict(order_intent_id="a" * 129), dict(pay_type=1),
                         dict(side=0), dict(broker="other")]:
             with self.subTest(changes=changes), self.assertRaises(MappingError):
                 from_cts_request(request(**changes), day_trade_flag="Y")

@@ -9,3 +9,7 @@ execution_logs/
 .env
 private/
 logs/
+vendor/
+local_runtime.json
+*.log
+python_path.txt
