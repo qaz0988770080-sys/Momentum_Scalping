@@ -174,6 +174,19 @@ def make_handler(root, bridge, page_name="taishin_readonly.html"):
                 return self.respond(200, page, html=True, set_cookie=True)
             if not self.authorized():
                 return self.respond(403, dict(error="LOCAL_SESSION_REQUIRED"))
+            if self.path == "/api/futures-plan":
+                if page_name != "taishin_futures.html":
+                    return self.respond(404, dict(error="NOT_FOUND"))
+                try:
+                    saved = json.loads((root / "private" / "futures-plan.json").read_text(encoding="utf-8"))
+                    if not isinstance(saved, dict):
+                        raise ValueError()
+                    safe = {key: saved.get(key) for key in (
+                        "symbol", "reported_lots", "side", "quantity", "price_type", "month_hint")}
+                    safe.update(broker_verified=False, source="user_instruction")
+                    return self.respond(200, safe)
+                except (OSError, ValueError):
+                    return self.respond(200, dict(broker_verified=False, source="not_provided"))
             if self.path == "/api/health":
                 return self.respond(200, dict(ok=True, server_build=SERVER_BUILD,
                     readonly=True, live_enabled=False))

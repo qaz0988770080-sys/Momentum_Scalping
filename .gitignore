@@ -15,3 +15,11 @@ local_runtime.json
 python_path.txt
 
 futures-runtime/
+
+Momentum*.exe
+Microsoft.Web.WebView2*.dll
+WebView2Loader.dll
+Momentum.ico
+*.lnk
+
+WebView2-LICENSE.txt

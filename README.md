@@ -64,3 +64,6 @@ python taishin_preview.py --day-trade Y --symbol 2330 --lots 2
 
 
 期貨登入驗收入口：雙擊 Launch_FUTURES_VALIDATION.cmd，再開 http://127.0.0.1:8790/ 。可選驗證／正式唯讀登入，兩者都沒有送單。實際 SDK 與 32 位元 runtime 已在本機交付；來源 ZIP 不包含 runtime。請先閱讀 FUTURES_PREPARATION.md 的限制。
+
+
+桌面版入口：Momentum.exe，或已建立的桌面捷徑「Momentum 台新期貨」。不再需要 CMD。詳見 [桌面 APP 說明](DESKTOP_APP_GUIDE.md)。介面與桌面啟動完成，正式交易連線與送單仍未驗收或開啟。

@@ -38,6 +38,14 @@ class FuturesValidationTests(unittest.TestCase):
         session,_=self.make();session.event('FAKE-SECRET FAKE-ACCOUNT SSO檢核失敗')
         self.assertEqual(session.events,['AUTHORIZATION_NOT_READY'])
         self.assertNotIn('FAKE',str(session.snapshot()))
+    def test_sdk_exception_trace_keeps_types_not_exception_messages(self):
+        session,_=self.make()
+        frame=SimpleNamespace(f_code=SimpleNamespace(co_filename='MasterFutTradePY.py',co_name='Connect_Auth'))
+        error=NameError('FAKE-SECRET FAKE-ACCOUNT');error.name='known_identifier'
+        session.trace(frame,'exception',(NameError,error,None))
+        self.assertEqual(session.sdk_exceptions[0]['kind'],'NameError')
+        self.assertEqual(session.sdk_exceptions[0]['identifier'],'known_identifier')
+        self.assertNotIn('FAKE',str(session.snapshot()))
     def test_duplicate_login_requires_new_worker(self):
         session,_=self.make();session.login('FAKE','SECRET',timeout=0)
         with self.assertRaisesRegex(FuturesLoginError,'FUTURES_RESTART_REQUIRED'):session.login('FAKE','SECRET',timeout=0)

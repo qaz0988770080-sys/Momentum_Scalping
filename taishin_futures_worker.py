@@ -46,10 +46,10 @@ def main():
             finally:username=password=''
             result.pop('readonly',None);result.pop('live_enabled',None);result.pop('order_enabled',None)
             emit('login',**result)
-            evidence=dict(ok=True,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
+            evidence=dict(ok=True,worker_pid=os.getpid(),server_pid=args.parent_pid,worker_build=BUILD,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
         except Exception as exc:
             code=str(exc) if isinstance(exc,FuturesLoginError) else 'FUTURES_SDK_'+type(exc).__name__
-            evidence=dict(ok=False,error=code,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
+            evidence=dict(ok=False,error=code,worker_pid=os.getpid(),server_pid=args.parent_pid,worker_build=BUILD,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
             emit('error',ok=False,connected=False,error=code,diagnostics=evidence)
             break
         finally:
