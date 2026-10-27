@@ -37,11 +37,12 @@ python taishin_readonly_worker.py --sdk-root vendor --check-sdk
 python taishin_readonly_ui.py --smoke-test
 python taishin_preview.py --day-trade Y --symbol 2330 --lots 2
 ```
-目前新增 59 項 unittest、原六模組 120 項自我檢查通過；網頁 JavaScript 語法檢查、Tk 啟動與獨立 SDK 載入檢查通過。
+目前新增 66 項 unittest、原六模組 120 項自我檢查通過；網頁 JavaScript 語法檢查、Tk 啟動與獨立 SDK 載入檢查通過。
 測試含假 SDK、測試用本機 HTTP 和 SQLite，並未驗證真實券商登入、成交或對帳。
 
 ## 已知阻塞與上線條件
-使用者已手動啟動服務並看到啟動訊息，但一般瀏覽器及內建瀏覽器仍回報無法連線。
+新版 8788 已由使用者驗證 SELF_CHECK_OK 與網頁成功開啟，桌面服務 appcontainer=false、HTTP 200。
+目前進入券商唯讀登入階段，收到 BROKER_HOST_NOT_READY；尚未取得台新庫存。
 開發工具環境確認為 Windows AppContainer；其同程序回環 HTTP 成功、連桌面服務逾時。
 這不證明使用者桌面的程式也在相同隔離中，須由 Check_LOCAL_WEB.cmd 的桌面診斷結果定位。
 啟動訊息、寫入 runtime.json、SDK 載入或單元測試均不等於端到端驗收成功。
@@ -52,3 +53,5 @@ python taishin_preview.py --day-trade Y --symbol 2330 --lots 2
 不能因本週或下週的目標日期而跳過上述驗收。
 
 官方文件：https://mlapi.tssco.com.tw/web_api/service/document/python-trade
+
+登入診斷更新：登入中 IN_PROGRESS／RECONNECTED 不再直接永久失效；SDK 返回後最多額外等候 8 秒明確就緒，真正錯誤仍封鎖。登入後重連仍使原連線失效，需重新核對。失敗時只保存授權結果、原生連線／應用就緒旗標、去識別事件分類及回呼錯誤類型，不保存原始訊息。連線程序 build=readonly-20261027-r3；重新整理頁面後「重新載入連線程序」會結束舊程序並建立新程序，啟動紀錄可核對 build。

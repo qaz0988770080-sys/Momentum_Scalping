@@ -160,7 +160,7 @@ def require_readonly(*args, **kwargs):
 
 class SDKDriver:
     """Loads a user-installed SDK from this project's own vendor directory."""
-    def __init__(self, sdk_root, *, host="solace140.masterlink.com.tw:55555"):
+    def __init__(self, sdk_root, *, host="solace140.masterlink.com.tw:55555", host_ready_timeout=8):
         root = Path(sdk_root).resolve()
         if not (root / "MasterTradePy" / "api.py").is_file():
             raise MappingError("SDK_DIRECTORY_MISSING")
@@ -168,6 +168,14 @@ class SDKDriver:
             raise MappingError("INVALID_CONNECTION_HOST")
         self.sdk_root = root
         self.host = host
+        self.host_ready_timeout = float(host_ready_timeout)
+        self._login_events = []
+        self._login_in_progress = False
+        self._hard_failure = False
+        self._auth_result = "NOT_STARTED"
+        self._login_started = time.monotonic()
+        self.last_login_diagnostics = {}
+        self._native_callback_errors = []
         self.api = None
         self.accounts = []
         self.collector = InventoryCollector()
@@ -223,16 +231,25 @@ class SDKDriver:
                     driver.collector.add(self.generation, str(workID), vars(data))
             def OnSystemEvent(self, data):
                 if self.current():
-                    driver.invalidated = True
-                    driver.collector.invalidate()
+                    driver._capture_event(data)
             def OnAnnouncementEvent(self, data):
                 pass
             def OnError(self, data):
                 if self.current():
-                    driver.invalidated = True
-                    driver.collector.invalidate()
+                    driver._capture_event(data, fatal=True)
 
         class ReadOnlyAPI(api_mod.MasterTradeAPI):
+            def OnSorApReady(self, sorapi, args):
+                if self is not driver.api or self._ms_session != driver.session:
+                    return
+                try:
+                    super().OnSorApReady(sorapi, args)
+                except Exception as exc:
+                    driver._native_callback_errors.append(dict(stage="AP_READY", error=type(exc).__name__))
+                    driver.invalidated = True
+                    driver._hard_failure = True
+                    driver.collector.invalidate()
+
             def OnSorTaskResult(self, sorapi, args):
                 if self is not driver.api or self._ms_session != driver.session:
                     return
@@ -251,6 +268,60 @@ class SDKDriver:
         self.Observer = Observer
         self.sdk_source_sha256 = hashlib.sha256(package_path.read_bytes()).hexdigest()
 
+
+    def _capture_event(self, data, *, fatal=False):
+        name = str(getattr(getattr(data, "code", None), "name", "UNKNOWN"))
+        if not re.fullmatch(r"[A-Z0-9_]+", name):
+            name = "UNKNOWN"
+        # Raw SDK text may contain credentials or account details: classify in memory only.
+        raw = str(getattr(data, "message", ""))
+        category = ""
+        for number, label in (("10061", "CONNECTION_REFUSED"), ("10060", "CONNECTION_TIMEOUT"),
+                              ("10013", "NETWORK_ACCESS_DENIED"), ("10054", "CONNECTION_RESET"),
+                              ("11001", "HOST_LOOKUP_FAILED")):
+            if re.search(r"(?<![0-9])" + number + r"(?![0-9])", raw):
+                category = label
+                break
+        self._login_events.append(dict(code=name, category=category or "UNCLASSIFIED"))
+        self._login_events = self._login_events[-12:]
+        progress = name in {"OK", "IN_PROGRESS", "RECONNECTED", "NOEVENT", "CLIENT_TESTING"}
+        if fatal or not progress or not self._login_in_progress:
+            self.invalidated = True
+            self.collector.invalidate()
+            self._hard_failure = True
+
+    def login_diagnostics(self):
+        api = self.api
+        def check(fn):
+            try:
+                return bool(fn())
+            except Exception:
+                return False
+        native = getattr(api, "sorapi", None) if api is not None else None
+        sso = getattr(getattr(api, "sso_sorapi", None), "user", None)
+        return dict(auth_result=self._auth_result, native_created=native is not None,
+                    native_session_connected=check(lambda: native.IsSessionConnected()),
+                    application_ready=check(lambda: api.IsReady()),
+                    sso_endpoint_received=bool(getattr(sso, "xtrade2_host", "")),
+                    invalidated=self.invalidated,
+                    system_events=list(self._login_events),
+                    native_callback_errors=list(self._native_callback_errors),
+                    elapsed_seconds=round(time.monotonic() - self._login_started, 2))
+
+    def wait_host_ready(self):
+        deadline = time.monotonic() + self.host_ready_timeout
+        while True:
+            if self.ready():
+                return
+            if self._hard_failure or time.monotonic() >= deadline:
+                categories = [x["category"] for x in self._login_events]
+                for category in ("CONNECTION_REFUSED", "CONNECTION_TIMEOUT",
+                                 "NETWORK_ACCESS_DENIED", "CONNECTION_RESET", "HOST_LOOKUP_FAILED"):
+                    if category in categories:
+                        raise MappingError("BROKER_" + category)
+                raise MappingError("BROKER_HOST_NOT_READY")
+            time.sleep(0.05)
+
     def ready(self):
         try:
             return (not self.invalidated and self.api is not None
@@ -259,13 +330,20 @@ class SDKDriver:
             return False
 
     def login(self, username, password, environment="formal"):
+        self._login_started = time.monotonic()
+        self._login_events = []
+        self._auth_result = "NOT_STARTED"
+        self.last_login_diagnostics = {}
         try:
             return self._login(username, password, environment)
         except Exception as exc:
+            self.last_login_diagnostics = self.login_diagnostics()
             self.logout()
             if isinstance(exc, MappingError):
                 raise
             raise MappingError("BROKER_LOGIN_EXCEPTION") from None
+        finally:
+            self._login_in_progress = False
 
     def _login(self, username, password, environment="formal"):
         if environment not in {"formal", "validation"}:
@@ -274,12 +352,16 @@ class SDKDriver:
         self.load()
         self.session = self.collector.reset()
         self.invalidated = False
+        self._login_in_progress = True
+        self._hard_failure = False
         self._reports = []
         self._report_errors = 0
         self.api = self.API(self.Observer())
         self.api._ms_session = self.session
         self.api.SetConnectionHost(self.host)
         code = self.api.Login(username, password, environment == "validation", False, False)
+        auth_name = str(getattr(code, "name", code))
+        self._auth_result = auth_name if re.fullmatch(r"[A-Z0-9_-]+", auth_name) else "UNKNOWN"
         accepted = {self.RCode.OK, self.RCode.PART_USER_VERIFIED}
         if environment == "validation":
             accepted.add(self.RCode.USER_NOT_VERIFIED)
@@ -287,8 +369,7 @@ class SDKDriver:
             name = str(getattr(code, "name", "UNKNOWN"))
             name = name if re.fullmatch(r"[A-Z0-9_]+", name) else "UNKNOWN"
             raise MappingError("BROKER_LOGIN_REJECTED_" + name)
-        if not self.ready():
-            raise MappingError("BROKER_HOST_NOT_READY")
+        self.wait_host_ready()
         # Native securities account list is filled by OnSorApReady, never guess by slicing IDs.
         self.accounts = [str(x) for x in self.api.aAccList]
         if not self.accounts or len(set(self.accounts)) != len(self.accounts):

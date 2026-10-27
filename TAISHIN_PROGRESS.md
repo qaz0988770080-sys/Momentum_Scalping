@@ -11,7 +11,7 @@ Host/Origin/CSRF 防護、可見服務啟動器、去識別連線診斷，以及
 本機另行複製官方 SDK 與通用依賴到獨立 vendor；這些檔案不進 GitHub 或來源交付包。
 
 驗證：
-- python run_offline_checks.py：59 項 unittest + 原六模組 120 項自我檢查通過。
+- python run_offline_checks.py：66 項 unittest + 原六模組 120 項自我檢查通過。
 - 網頁 JavaScript 語法檢查通過。
 - taishin_readonly_ui.py --smoke-test：程序就緒、登入按鈕、查詢停用及子程序存活檢查通過。
 - taishin_readonly_worker.py --sdk-root vendor --check-sdk：獨立 SDK 載入成功，沒有建立登入或送單。
@@ -31,4 +31,8 @@ Host/Origin/CSRF 防護、可見服務啟動器、去識別連線診斷，以及
 下一步：定位瀏覽器可達性 → 真實唯讀登入與庫存 → 回補／可賣量 → 驗證環境下單生命週期。
 
 桌面診斷補充：使用者實際執行結果 appcontainer=false、服務程序 running=true、同程序 HTTP 回環 200，但當時 8786 服務逾時。因此無法把問題直接歸因於使用者隔離或防火牆。
-啟動修正：改用 8788、Windows 排他監聽、先啟動服務執行緒再取得 HTTP 200 的自我驗證；只有成功才顯示 SELF_CHECK_OK。服務黑窗關閉 QuickEdit 以避免文字選取停頓，僅調整該視窗、不改系統安全政策。新增重複監聽測試，完整 59 項測試與原 120 項檢查通過。開發環境 --port 0 --self-test 實際取得 HTTP 200；等待桌面新版驗收，不宣告問題已解決。
+啟動修正：改用 8788、Windows 排他監聽、先啟動服務執行緒再取得 HTTP 200 的自我驗證；只有成功才顯示 SELF_CHECK_OK。服務黑窗關閉 QuickEdit 以避免文字選取停頓，僅調整該視窗、不改系統安全政策。新增重複監聽測試，完整 66 項測試與原 120 項檢查通過。開發環境 --port 0 --self-test 實際取得 HTTP 200；等待桌面新版驗收，不宣告問題已解決。
+
+最新現況：使用者已確認 8788 SELF_CHECK_OK 且網頁可開；runtime 記錄 appcontainer=false、http_self_check=200。券商唯讀登入兩次失敗 BROKER_HOST_NOT_READY，未取得庫存。
+已修正登入中進行／重連事件被永久失效，以及只做一次主機就緒判斷的問題，新增等待與事件分類。66 項 unittest、原 120 項檢查及 JavaScript 語法檢查通過。加入原生 AP_READY 回呼錯誤分類及 build=readonly-20261027-r3 的啟動證據。
+使用者回報重試失敗，但實際紀錄仍為不含 diagnostics 的舊格式；目前等待手動頁面重整與程序重載，以核對新 build 後再進行一次登入。工具讀取頁面成功但工具重新整理遇到連線拒絕，因此不能以工具網頁操作的失敗直接推定桌面服務已停止。

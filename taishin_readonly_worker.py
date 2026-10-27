@@ -8,6 +8,7 @@ import threading
 import time
 
 PREFIX = "@@MOMENTUM_READONLY@@"
+BUILD = "readonly-20261027-r3"
 
 def main():
     parser = argparse.ArgumentParser()
@@ -36,7 +37,7 @@ def main():
 
     def evidence(stage, ok, **values):
         safe = dict(stage=stage, ok=bool(ok), checked_at=observed_now(),
-                    readonly=True, live_enabled=False, **values)
+                    readonly=True, live_enabled=False, worker_build=BUILD, **values)
         dest = private / "readiness.json"
         temp = dest.with_suffix(".tmp")
         temp.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -71,7 +72,8 @@ def main():
                  readonly=True, live_enabled=False)
             return 1
 
-    emit("ready", readonly=True, live_enabled=False)
+    emit("ready", readonly=True, live_enabled=False, worker_build=BUILD)
+    evidence("worker_ready", True, connected=False, order_recovery_complete=False)
     try:
         for raw in sys.stdin:
             command = {}
@@ -128,9 +130,10 @@ def main():
                     driver.logout()
                 code = str(exc) if isinstance(exc, MappingError) else type(exc).__name__
                 # Exception messages from SDKs are never forwarded.
-                emit("error", action=action, ok=False, error=code,
+                diagnostics = driver.last_login_diagnostics if action == "login" else {}
+                emit("error", action=action, ok=False, error=code, diagnostics=diagnostics,
                      readonly=True, live_enabled=False, connected=driver.ready())
-                evidence(action or "command", False, error=code, connected=driver.ready(),
+                evidence(action or "command", False, error=code, diagnostics=diagnostics, connected=driver.ready(),
                          order_recovery_complete=False)
             finally:
                 if isinstance(command, dict):

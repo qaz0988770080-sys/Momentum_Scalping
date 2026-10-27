@@ -146,6 +146,8 @@ class FakeAPI:
         self.native_calls += 1
     def ChangeOrderPrice(self, *args):
         self.native_calls += 1
+    def OnSorApReady(self, sorapi, args):
+        pass
     def OnSorTaskResult(self, sorapi, args):
         self.observer.OnReqResult("qid1", FakeInventory(**inventory()))
     def ReqInventoryRayinTotal(self, account):
@@ -242,6 +244,76 @@ class DriverTests(unittest.TestCase):
         old_api.OnSorTaskResult(old_api.sorapi, args)
         with self.assertRaises(TimeoutError):
             self.driver.collector.wait(self.driver.session, "qid1", timeout=0)
+
+    def test_connecting_notice_does_not_permanently_invalidate_login(self):
+        original = FakeAPI.Login
+        def with_progress(api, *args):
+            api.observer.OnSystemEvent(SimpleNamespace(
+                code=SimpleNamespace(name="IN_PROGRESS"), message="TEST MESSAGE"))
+            return original(api, *args)
+        with patch.object(FakeAPI, "Login", with_progress):
+            self.assertTrue(self.login()["connected"])
+        self.assertFalse(self.driver._login_in_progress)
+
+    def test_late_native_readiness_is_waited_for(self):
+        original = FakeAPI.Login
+        def delayed(api, *args):
+            original(api, *args)
+            api.connected = False
+            threading.Timer(0.05, lambda: setattr(api, "connected", True)).start()
+            return 0
+        self.driver.host_ready_timeout = 0.5
+        with patch.object(FakeAPI, "Login", delayed):
+            self.assertTrue(self.login()["connected"])
+
+    def test_real_refusal_remains_blocked_and_raw_message_is_not_saved(self):
+        original = FakeAPI.Login
+        def refused(api, *args):
+            original(api, *args)
+            api.observer.OnSystemEvent(SimpleNamespace(code=SimpleNamespace(name="FAIL"),
+                message="10061 FAKE_SECRET_USER_AND_PASSWORD"))
+            return 0
+        with patch.object(FakeAPI, "Login", refused):
+            with self.assertRaisesRegex(MappingError, "BROKER_CONNECTION_REFUSED"):
+                self.login()
+        diagnostics = self.driver.last_login_diagnostics
+        self.assertNotIn("FAKE_SECRET", str(diagnostics))
+        self.assertEqual(diagnostics["system_events"][0]["category"], "CONNECTION_REFUSED")
+        self.assertIsNone(self.driver.api)
+
+    def test_host_timeout_preserves_flags_without_unlocking_session(self):
+        def not_ready(api, *args):
+            return 0
+        self.driver.host_ready_timeout = 0
+        with patch.object(FakeAPI, "Login", not_ready):
+            with self.assertRaisesRegex(MappingError, "BROKER_HOST_NOT_READY"):
+                self.login()
+        self.assertFalse(self.driver.last_login_diagnostics["application_ready"])
+        self.assertFalse(self.driver.ready())
+
+    def test_post_login_reconnect_requires_fresh_session(self):
+        self.login()
+        self.driver.api.observer.OnSystemEvent(SimpleNamespace(
+            code=SimpleNamespace(name="RECONNECTED"), message="RECONNECTED"))
+        self.assertFalse(self.driver.ready())
+        self.assertFalse(self.driver.collector.active)
+
+    def test_unexpected_login_error_never_exposes_sdk_message(self):
+        with patch.object(FakeAPI, "Login", side_effect=RuntimeError("FAKE_SECRET")):
+            with self.assertRaisesRegex(MappingError, "^BROKER_LOGIN_EXCEPTION$"):
+                self.login()
+        self.assertNotIn("FAKE_SECRET", str(self.driver.last_login_diagnostics))
+        self.assertIsNone(self.driver.api)
+
+    def test_native_ready_callback_error_is_recorded_without_raw_sdk_text(self):
+        self.login()
+        with patch.object(FakeAPI, "OnSorApReady", side_effect=ValueError("FAKE_SECRET")):
+            self.driver.api.OnSorApReady(self.driver.api.sorapi, object())
+        self.assertFalse(self.driver.ready())
+        events = self.driver.login_diagnostics()["native_callback_errors"]
+        self.assertEqual(events[0]["stage"], "AP_READY")
+        self.assertEqual(events[0]["error"], "ValueError")
+        self.assertNotIn("FAKE_SECRET", str(events))
 
 
 class GatewayReadOnlyTests(unittest.TestCase):

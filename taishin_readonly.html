@@ -29,7 +29,7 @@ footer{color:#7591a3;font-size:12px;line-height:1.8;margin-top:20px}.empty{color
 <button class="primary" id="login" type="submit" disabled>唯讀登入</button></form>
 <p class="hint">帳密只傳給本機的獨立台新程序，不會寫入檔案或傳送至 GitHub。</p>
 <label for="account">證券帳戶</label><select id="account" disabled><option>登入後選擇</option></select>
-<button id="logout" disabled type="button">登出</button></section>
+<button id="logout" disabled type="button">登出</button> <button id="reload" type="button">重新載入連線程序</button></section>
 <section class="card"><h2>連線與資料驗收</h2><div id="status" role="status" aria-live="polite">正在啟動本機唯讀程序……</div>
 <div class="facts"><div class="fact"><small>交易主機</small><strong id="connection">尚未登入</strong></div><div class="fact"><small>委託回補完整性</small><strong>尚未通過驗證</strong></div></div>
 <div class="actions"><button id="inventory" disabled>查庫存完成狀態</button><button id="orders" disabled>觀察委託回報</button><button id="matches" disabled>觀察成交回報</button></div>
@@ -40,7 +40,7 @@ const csrf="__CSRF__", el=id=>document.getElementById(id);
 let connected=false,ready=false,busy=false;
 function text(id,value){el(id).textContent=value}
 function log(value){const box=el("log");box.textContent+= "\n"+new Date().toLocaleTimeString()+"  "+value;if(box.textContent.length>20000)box.textContent=box.textContent.slice(-15000);box.scrollTop=box.scrollHeight}
-function controls(){el("login").disabled=!ready||connected||busy;el("logout").disabled=!connected||busy;el("environment").disabled=connected||busy;el("account").disabled=!connected||busy;
+function controls(){el("reload").disabled=busy;el("login").disabled=!ready||connected||busy;el("logout").disabled=!connected||busy;el("environment").disabled=connected||busy;el("account").disabled=!connected||busy;
 ["inventory","orders","matches"].forEach(id=>el(id).disabled=!connected||busy||(id==="inventory"&&el("environment").value!=="formal"));
 text("connection",connected?"唯讀連線已就緒":"尚未登入")}
 async function call(action,data={}){busy=true;controls();try{const response=await fetch("/api/"+action,{method:"POST",headers:{"Content-Type":"application/json","X-Momentum-CSRF":csrf},body:JSON.stringify(data)});
@@ -56,5 +56,6 @@ const table=document.createElement("table"),header=table.insertRow();["商品","
 (result.rows||[]).forEach(row=>{const tr=table.insertRow();[row.symbol,row.quantity_shares,row.odd_shares].forEach(v=>{const cell=tr.insertCell();cell.textContent=v})});el("holdings").replaceChildren(table)}});
 ["orders","matches"].forEach(action=>el(action).addEventListener("click",async()=>{const result=await call(action,{account_index:Number(el("account").value)});if(result?.row_count!==undefined){text("status","觀測到 "+result.row_count+" 筆回報；尚不能宣告券商清單完整。");log(result.error||"OBSERVATION_ONLY")}}));
 el("logout").addEventListener("click",async()=>{await call("logout");connected=false;el("account").replaceChildren();el("holdings").replaceChildren();el("log").textContent="已清除本頁顯示的帳戶資料。";text("status","已登出。");controls()});
+el("reload").addEventListener("click",async()=>{const result=await call("logout");if(result?.kind==="logout"){connected=false;ready=true;el("account").replaceChildren();el("holdings").replaceChildren();text("status","正在重新建立唯讀程序……");try{const state=await fetch("/api/state").then(r=>r.json());ready=!!state.worker_ready;text("status",ready?"新版唯讀程序已啟動，現在可以登入。":state.error||"程序未就緒");log("已結束舊的唯讀連線程序並重新建立。")}catch(e){ready=false;text("status","重新建立程序失敗。")}controls()}});
 fetch("/api/state").then(r=>r.json()).then(result=>{ready=!!result.worker_ready;connected=!!result.connected;text("status",ready?"本機程序已就緒，請在左側唯讀登入。":result.error||"程序未就緒");if(connected){el("account").replaceChildren();(result.accounts||[]).forEach((a,i)=>{let o=document.createElement("option");o.value=i;o.textContent=a;el("account").append(o)})}controls()}).catch(()=>text("status","無法連接本機程序。"));
 </script></body></html>
