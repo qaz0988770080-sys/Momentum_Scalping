@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import threading
@@ -65,14 +66,21 @@ def http_check(url):
 def main():
     base = Path(__file__).resolve().parent
     result = dict(checked_at=datetime.now(timezone.utc).isoformat(),
-                  appcontainer=appcontainer(), service_http=http_check("http://127.0.0.1:8786/"))
+                  appcontainer=appcontainer())
+    url = "http://127.0.0.1:8788/"
     saved = base / "private" / "readonly-web-runtime.json"
     if saved.is_file():
         try:
             state = json.loads(saved.read_text(encoding="utf-8"))
             result["saved_process"] = process_running(int(state["pid"]))
+            candidate = str(state.get("url", ""))
+            if re.fullmatch(r"http://127\.0\.0\.1:[0-9]{1,5}", candidate):
+                url = candidate + "/"
+            result["server_self_check"] = state.get("http_self_check")
         except Exception:
             result["saved_process"] = dict(error="STATE_NOT_READABLE")
+    result["service_http"] = http_check(url)
+    result["tested_url"] = url
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass

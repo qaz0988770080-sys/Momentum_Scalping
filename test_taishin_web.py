@@ -6,7 +6,7 @@ import re
 import threading
 import unittest
 
-from taishin_readonly_web import make_handler
+from taishin_readonly_web import make_handler, LoopbackServer
 
 class FakeBridge:
     def __init__(self):
@@ -21,7 +21,7 @@ class WebTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.bridge = FakeBridge()
-        cls.server = ThreadingHTTPServer(("127.0.0.1", 0),
+        cls.server = LoopbackServer(("127.0.0.1", 0),
             make_handler(Path(__file__).parent, cls.bridge))
         cls.server.daemon_threads = True
         cls.thread = threading.Thread(target=cls.server.serve_forever, daemon=True)
@@ -56,6 +56,11 @@ class WebTests(unittest.TestCase):
                   "X-Momentum-CSRF": self.csrf, "Content-Type": "application/json"}
         result.update(extra)
         return result
+
+    def test_second_listener_cannot_share_this_port(self):
+        with self.assertRaises(OSError):
+            LoopbackServer(("127.0.0.1", self.port),
+                           make_handler(Path(__file__).parent, FakeBridge()))
 
     def test_page_is_private_and_does_not_cache_credentials(self):
         status, headers, body = self.call("GET", "/")

@@ -226,25 +226,51 @@ def make_handler(root, bridge):
 
     return Handler
 
+class LoopbackServer(ThreadingHTTPServer):
+    # On Windows, SO_REUSEADDR can allow multiple listeners for one address.
+    # Do not let an old process and a new process share this application's port.
+    allow_reuse_address = False
+    daemon_threads = True
+
+    def server_bind(self):
+        import socket
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
 def main():
+    from taishin_web_diagnose import appcontainer, http_check
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8786)
+    parser.add_argument("--port", type=int, default=8788)
+    parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     root = Path(__file__).resolve().parent
     bridge = WorkerBridge(root)
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(root, bridge))
-    server.daemon_threads = True
+    server = LoopbackServer(("127.0.0.1", args.port), make_handler(root, bridge))
     url = "http://127.0.0.1:" + str(server.server_port)
     state = root / "private" / "readonly-web-runtime.json"
     state.parent.mkdir(parents=True, exist_ok=True)
-    state.write_text(json.dumps(dict(pid=os.getpid(), url=url, readonly=True,
-                                    live_enabled=False)), encoding="utf-8")
-    print(json.dumps(dict(url=url, readonly=True, live_enabled=False)), flush=True)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
     try:
-        server.serve_forever()
+        check = http_check(url + "/")
+        result = dict(pid=os.getpid(), url=url, readonly=True, live_enabled=False,
+                      appcontainer=appcontainer(), http_self_check=check)
+        temporary = state.with_suffix(".tmp")
+        temporary.write_text(json.dumps(result), encoding="utf-8")
+        os.replace(temporary, state)
+        print(json.dumps(result), flush=True)
+        if not check.get("ok"):
+            raise RuntimeError("LOCAL_HTTP_SELF_CHECK_FAILED")
+        print("SELF_CHECK_OK - keep this window open", flush=True)
+        if not args.self_test:
+            thread.join()
     finally:
+        server.shutdown()
         bridge.close()
         server.server_close()
+        thread.join(timeout=2)
+    return 0
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

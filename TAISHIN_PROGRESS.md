@@ -11,7 +11,7 @@ Host/Origin/CSRF 防護、可見服務啟動器、去識別連線診斷，以及
 本機另行複製官方 SDK 與通用依賴到獨立 vendor；這些檔案不進 GitHub 或來源交付包。
 
 驗證：
-- python run_offline_checks.py：58 項 unittest + 原六模組 120 項自我檢查通過。
+- python run_offline_checks.py：59 項 unittest + 原六模組 120 項自我檢查通過。
 - 網頁 JavaScript 語法檢查通過。
 - taishin_readonly_ui.py --smoke-test：程序就緒、登入按鈕、查詢停用及子程序存活檢查通過。
 - taishin_readonly_worker.py --sdk-root vendor --check-sdk：獨立 SDK 載入成功，沒有建立登入或送單。
@@ -29,3 +29,6 @@ Host/Origin/CSRF 防護、可見服務啟動器、去識別連線診斷，以及
 目標：使用者希望本週（10/27–10/30）或下週前使用。
 可用程度以實際端到端驗收為準；目前為唯讀驗收開發版，尚非正式自動交易版。
 下一步：定位瀏覽器可達性 → 真實唯讀登入與庫存 → 回補／可賣量 → 驗證環境下單生命週期。
+
+桌面診斷補充：使用者實際執行結果 appcontainer=false、服務程序 running=true、同程序 HTTP 回環 200，但當時 8786 服務逾時。因此無法把問題直接歸因於使用者隔離或防火牆。
+啟動修正：改用 8788、Windows 排他監聽、先啟動服務執行緒再取得 HTTP 200 的自我驗證；只有成功才顯示 SELF_CHECK_OK。服務黑窗關閉 QuickEdit 以避免文字選取停頓，僅調整該視窗、不改系統安全政策。新增重複監聽測試，完整 59 項測試與原 120 項檢查通過。開發環境 --port 0 --self-test 實際取得 HTTP 200；等待桌面新版驗收，不宣告問題已解決。

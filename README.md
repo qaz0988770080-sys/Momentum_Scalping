@@ -7,7 +7,7 @@
 交付資料夾已準備獨立 vendor 與 Python 啟動路徑。GitHub 與來源 ZIP 不包含券商 SDK、憑證、帳密或個人資料。
 
 1. 在檔案總管雙擊 Launch_READONLY_WEB.cmd，保持服務視窗開啟。
-2. 開啟 http://127.0.0.1:8786/ 。台新帳密只在該本機頁面輸入。
+2. 開啟 http://127.0.0.1:8788/ 。台新帳密只在該本機頁面輸入。
 3. 登入後查庫存完成狀態，並觀察委託／成交回報。
 4. 網頁打不開時，在服務視窗仍開著的情況下執行 Check_LOCAL_WEB.cmd。
    診斷只測本機 HTTP、程序狀態與隔離環境，不登入券商；結果保存在 private/web-diagnostics.json。
@@ -37,7 +37,7 @@ python taishin_readonly_worker.py --sdk-root vendor --check-sdk
 python taishin_readonly_ui.py --smoke-test
 python taishin_preview.py --day-trade Y --symbol 2330 --lots 2
 ```
-目前新增 58 項 unittest、原六模組 120 項自我檢查通過；網頁 JavaScript 語法檢查、Tk 啟動與獨立 SDK 載入檢查通過。
+目前新增 59 項 unittest、原六模組 120 項自我檢查通過；網頁 JavaScript 語法檢查、Tk 啟動與獨立 SDK 載入檢查通過。
 測試含假 SDK、測試用本機 HTTP 和 SQLite，並未驗證真實券商登入、成交或對帳。
 
 ## 已知阻塞與上線條件
