@@ -1,2 +1,41 @@
-# Momentum_Scalping
-Taiwan Stock Exchange Automated Trading Program (Long Position Only)
+# Momentum Scalping 台新獨立專案
+
+這是 Momentum_Scalping 的台新 Core 適配開發分支，獨立於金融助理及 AlphaDesk。
+目前是**離線開發版，尚不能正式自動下單**。預設 Gateway 已改選台新；台新登入、查詢、改單、撤單與正式送單尚未實作完成，均明確拒絕，不回傳假的成功或完整空庫存。
+
+## 已完成
+- 原策略、市場判定、選股、風控來源保留。
+- 新增 taishin_adapter.py：普通現股整張的張數轉股數、市價價格、ROD/FOK/IOC、明確當沖標記。
+- 回報需核對帳戶、交易日、商品、買賣別、意圖與委託書號；累計成交不能重複累加或倒退。
+- TaishinClient 透過 Gateway 的 broker 介面使用；cts 名稱僅為現有策略的相容介面。
+- 正式送單硬性停用，尚無可開啟正式交易的設定。
+- 離線預覽入口及完整回歸檢查入口。
+
+## 執行（Python 3.12 以上，標準函式庫即可）
+```powershell
+python run_offline_checks.py
+python taishin_preview.py --day-trade Y --symbol 2330 --lots 2 --side buy --tif ROD
+```
+範例為固定測試日期 2026-11-02、假帳戶、假意圖，輸出只做參數預覽，不是選股或買進建議。
+不要使用原 gui_v5_5.py 作為台新正式交易入口；原 GUI 登入欄位與 Runtime 券商對帳仍待適配。
+
+## 專案隔離
+程式不引用金融助理或 AlphaDesk 路徑、服務、資料庫、帳密、權杖或登入工作階段。
+不打包券商 SDK、PFX 或任何個人資料。未來 SDK 應另行安裝在這個專案的專用環境；
+禁止從既有正式服務載入登入狀態，也不能為測試重啟該服務。
+
+## 上線前未完成
+1. 獨立 SDK worker 與本機登入入口（帳密限記憶體／stdin，不放命令列或日誌）。
+2. 對接實際台新回呼物件及完整委託／成交／庫存查詢，確認連線就緒與重連資料補齊時點。
+3. 穩定意圖標記、持久化送單日誌、重啟恢復及未知委託人工處理。現階段意圖限定 32 字元，需與原 Runtime 產生方式整合。
+4. 當沖資格與旗標、庫存可賣量、撤單競態、部分成交、費稅、策略資金與日損風控。
+5. 行情授權與登入、資料過期及斷線測試。
+6. 獨立台新 GUI 與 Runtime 整合、驗證環境端到端測試、盤中只讀／模擬觀察。
+7. 券商核對成功後，再決定限額正式試運行。
+
+查詢完整性不能靠「一段時間沒有回呼」或「回傳零筆」推測。
+現有本機 MasterTradePy 的 QryRepAll/QryRepDeal 迭代 orderReportDict 快取，故不能把呼叫成功解讀為券商最新完整查詢；
+必須先釐清該 SDK 版本的回補完成訊號或取得另一可靠查詢方式。
+本版本的報告正規化以人工測試訊息驗證，尚無真實台新回報證據。
+
+官方文件：https://mlapi.tssco.com.tw/web_api/service/document/python-trade

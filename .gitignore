@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.test-artifacts/
+.test-replay/
+api_replay/
+execution_logs/
+*.pfx
+*.p12
+.env
+private/
+logs/
