@@ -11,6 +11,10 @@ import secrets
 import subprocess
 import sys
 import threading
+from datetime import datetime, timezone
+
+SERVER_BUILD = "readonly-web-20261028-r4"
+EXPECTED_WORKER_BUILD = "readonly-20261028-r4"
 
 PREFIX = "@@MOMENTUM_READONLY@@"
 
@@ -22,10 +26,16 @@ class WorkerBridge:
         self.messages = queue.Queue()
         self.connected = False
         self.accounts = []
+        self.worker_build = None
 
     def _start(self):
         if self.process is not None and self.process.poll() is None:
             return
+        if self.process is not None:
+            self._stop()
+        self.connected = False
+        self.accounts = []
+        self.worker_build = None
         self.messages = queue.Queue()
         process = subprocess.Popen(
             [sys.executable, "-u", str(self.root / "taishin_readonly_worker.py"),
@@ -46,8 +56,10 @@ class WorkerBridge:
         threading.Thread(target=read, daemon=True).start()
         try:
             result = messages.get(timeout=5)
-            if result.get("kind") != "ready":
+            if (result.get("kind") != "ready"
+                    or result.get("worker_build") != EXPECTED_WORKER_BUILD):
                 raise RuntimeError("READONLY_WORKER_START_FAILED")
+            self.worker_build = result["worker_build"]
         except Exception:
             self._stop()
             raise RuntimeError("READONLY_WORKER_START_FAILED") from None
@@ -55,7 +67,8 @@ class WorkerBridge:
     def state(self):
         with self.lock:
             self._start()
-            return dict(ok=True, worker_ready=True, connected=self.connected,
+            return dict(ok=True, worker_ready=True, server_build=SERVER_BUILD,
+                        worker_build=self.worker_build, connected=self.connected,
                         accounts=list(self.accounts), readonly=True, live_enabled=False)
 
     def request(self, command):
@@ -88,6 +101,7 @@ class WorkerBridge:
 
     def _stop(self):
         process, self.process = self.process, None
+        self.worker_build = None
         self.connected = False
         self.accounts = []
         if process is not None:
@@ -157,6 +171,9 @@ def make_handler(root, bridge):
                 return self.respond(200, page, html=True, set_cookie=True)
             if not self.authorized():
                 return self.respond(403, dict(error="LOCAL_SESSION_REQUIRED"))
+            if self.path == "/api/health":
+                return self.respond(200, dict(ok=True, server_build=SERVER_BUILD,
+                    readonly=True, live_enabled=False))
             if self.path == "/api/state":
                 try:
                     return self.respond(200, bridge.state())
@@ -254,22 +271,35 @@ def main():
     thread.start()
     try:
         check = http_check(url + "/")
-        result = dict(pid=os.getpid(), url=url, readonly=True, live_enabled=False,
+        result = dict(pid=os.getpid(), url=url, server_build=SERVER_BUILD,
+                      readonly=True, live_enabled=False,
                       appcontainer=appcontainer(), http_self_check=check)
-        temporary = state.with_suffix(".tmp")
-        temporary.write_text(json.dumps(result), encoding="utf-8")
-        os.replace(temporary, state)
+        def save_status(phase):
+            process = bridge.process
+            snapshot = dict(result, phase=phase,
+                checked_at=datetime.now(timezone.utc).isoformat(),
+                serving_thread_alive=thread.is_alive(),
+                worker_build=bridge.worker_build,
+                worker_pid=process.pid if process else None)
+            temporary = state.with_suffix("." + str(os.getpid()) + ".tmp")
+            temporary.write_text(json.dumps(snapshot), encoding="utf-8")
+            os.replace(temporary, state)
+        save_status("serving")
         print(json.dumps(result), flush=True)
         if not check.get("ok"):
             raise RuntimeError("LOCAL_HTTP_SELF_CHECK_FAILED")
         print("SELF_CHECK_OK - keep this window open", flush=True)
         if not args.self_test:
-            thread.join()
+            while thread.is_alive():
+                thread.join(timeout=2)
+                save_status("serving" if thread.is_alive() else "stopped")
     finally:
         server.shutdown()
         bridge.close()
         server.server_close()
         thread.join(timeout=2)
+        if "save_status" in locals():
+            save_status("stopped")
     return 0
 
 if __name__ == "__main__":

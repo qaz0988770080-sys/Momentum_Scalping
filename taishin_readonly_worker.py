@@ -8,7 +8,7 @@ import threading
 import time
 
 PREFIX = "@@MOMENTUM_READONLY@@"
-BUILD = "readonly-20261027-r3"
+BUILD = "readonly-20261028-r4"
 
 def main():
     parser = argparse.ArgumentParser()
@@ -42,6 +42,12 @@ def main():
         temp = dest.with_suffix(".tmp")
         temp.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
         os.replace(temp, dest)
+        environment = values.get("environment")
+        if stage == "login" and environment in {"formal", "validation"}:
+            separate = private / ("login-" + environment + ".json")
+            temp = separate.with_suffix(".tmp")
+            temp.write_text(json.dumps(safe, ensure_ascii=False, indent=2), encoding="utf-8")
+            os.replace(temp, separate)
 
     if args.parent_pid and os.name == "nt":
         def watch_parent():
@@ -101,7 +107,8 @@ def main():
                         username = password = ""
                     emit("login", **result)
                     evidence("login", result["ok"], connected=result["connected"],
-                             order_recovery_complete=False,
+                             order_recovery_complete=False, environment=result["environment"],
+                             diagnostics=driver.login_diagnostics(),
                              sdk_source_sha256=result["sdk_source_sha256"])
                 elif action == "inventory":
                     result = driver.inventory(command.get("account_index", 0), timeout=15)
@@ -133,7 +140,8 @@ def main():
                 diagnostics = driver.last_login_diagnostics if action == "login" else {}
                 emit("error", action=action, ok=False, error=code, diagnostics=diagnostics,
                      readonly=True, live_enabled=False, connected=driver.ready())
-                evidence(action or "command", False, error=code, diagnostics=diagnostics, connected=driver.ready(),
+                evidence(action or "command", False, error=code, diagnostics=diagnostics,
+                         environment=driver.environment if action == "login" else None, connected=driver.ready(),
                          order_recovery_complete=False)
             finally:
                 if isinstance(command, dict):

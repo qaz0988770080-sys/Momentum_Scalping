@@ -37,7 +37,7 @@ python taishin_readonly_worker.py --sdk-root vendor --check-sdk
 python taishin_readonly_ui.py --smoke-test
 python taishin_preview.py --day-trade Y --symbol 2330 --lots 2
 ```
-目前新增 66 項 unittest、原六模組 120 項自我檢查通過；網頁 JavaScript 語法檢查、Tk 啟動與獨立 SDK 載入檢查通過。
+目前新增 71 項 unittest、原六模組 120 項自我檢查通過；網頁 JavaScript 語法檢查、Tk 啟動與獨立 SDK 載入檢查通過。
 測試含假 SDK、測試用本機 HTTP 和 SQLite，並未驗證真實券商登入、成交或對帳。
 
 ## 已知阻塞與上線條件
@@ -55,3 +55,9 @@ python taishin_preview.py --day-trade Y --symbol 2330 --lots 2
 官方文件：https://mlapi.tssco.com.tw/web_api/service/document/python-trade
 
 登入診斷更新：登入中 IN_PROGRESS／RECONNECTED 不再直接永久失效；SDK 返回後最多額外等候 8 秒明確就緒，真正錯誤仍封鎖。登入後重連仍使原連線失效，需重新核對。失敗時只保存授權結果、原生連線／應用就緒旗標、去識別事件分類及回呼錯誤類型，不保存原始訊息。連線程序 build=readonly-20261027-r3；重新整理頁面後「重新載入連線程序」會結束舊程序並建立新程序，啟動紀錄可核對 build。
+
+
+2026-10-28 更新：r4 加入持續心跳、服務／worker 版本核對與正式／驗證環境分開證據；詳細現況以 [TAISHIN_PROGRESS.md](TAISHIN_PROGRESS.md) 為準。
+
+- [原作者與目前參數對照（167 欄）](PARAMETERS_GUIDE.md)
+- [期貨模擬連線準備與所需資料](FUTURES_PREPARATION.md)

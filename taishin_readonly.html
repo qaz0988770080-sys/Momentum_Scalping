@@ -33,15 +33,16 @@ footer{color:#7591a3;font-size:12px;line-height:1.8;margin-top:20px}.empty{color
 <section class="card"><h2>連線與資料驗收</h2><div id="status" role="status" aria-live="polite">正在啟動本機唯讀程序……</div>
 <div class="facts"><div class="fact"><small>交易主機</small><strong id="connection">尚未登入</strong></div><div class="fact"><small>委託回補完整性</small><strong>尚未通過驗證</strong></div></div>
 <div class="actions"><button id="inventory" disabled>查庫存完成狀態</button><button id="orders" disabled>觀察委託回報</button><button id="matches" disabled>觀察成交回報</button></div>
-<div id="holdings"></div><div id="log" aria-live="polite">本機程序不提供買進、賣出、改單或撤單功能。</div>
+<p class="hint" id="build">正在核對服務版本……</p><div id="holdings"></div><div id="log" aria-live="polite">本機程序不提供買進、賣出、改單或撤單功能。</div>
 </section></div><footer>只有庫存查詢明確完成，才會顯示「完成」。回報快取不等於完整委託或成交清單。<br>庫存與回報只顯示在此本機視窗；去識別驗收紀錄不保存帳號、密碼、持股或回報原文。</footer>
 <script nonce="__NONCE__">
 const csrf="__CSRF__", el=id=>document.getElementById(id);
 let connected=false,ready=false,busy=false;
+function acceptState(result){ready=!!result.worker_ready&&result.server_build==="readonly-web-20261028-r4"&&result.worker_build==="readonly-20261028-r4";text("build","網頁："+(result.server_build||"舊版，請重啟服務")+" / 連線："+(result.worker_build||"未確認"));return ready}
 function text(id,value){el(id).textContent=value}
 function log(value){const box=el("log");box.textContent+= "\n"+new Date().toLocaleTimeString()+"  "+value;if(box.textContent.length>20000)box.textContent=box.textContent.slice(-15000);box.scrollTop=box.scrollHeight}
 function controls(){el("reload").disabled=busy;el("login").disabled=!ready||connected||busy;el("logout").disabled=!connected||busy;el("environment").disabled=connected||busy;el("account").disabled=!connected||busy;
-["inventory","orders","matches"].forEach(id=>el(id).disabled=!connected||busy||(id==="inventory"&&el("environment").value!=="formal"));
+["inventory","orders","matches"].forEach(id=>el(id).disabled=!connected||busy||el("environment").value!=="formal");
 text("connection",connected?"唯讀連線已就緒":"尚未登入")}
 async function call(action,data={}){busy=true;controls();try{const response=await fetch("/api/"+action,{method:"POST",headers:{"Content-Type":"application/json","X-Momentum-CSRF":csrf},body:JSON.stringify(data)});
 const result=await response.json();if(result.connected!==undefined)connected=!!result.connected;
@@ -50,12 +51,12 @@ return result}catch(e){text("status","本機程序未回覆，請重新開啟此
 el("login-form").addEventListener("submit",async event=>{event.preventDefault();const data={username:el("username").value.trim(),password:el("password").value,environment:el("environment").value};if(!data.username||!data.password){text("status","請在此輸入台新 ID 與密碼。");return}
 text("status","等待台新登入、憑證與交易主機就緒；不會送單。");const pending=call("login",data);data.username="";data.password="";el("username").value="";el("password").value="";const result=await pending;
 if(result?.kind==="login"&&result.ok){connected=!!result.connected;el("account").replaceChildren();(result.accounts||[]).forEach((account,i)=>{const option=document.createElement("option");option.value=i;option.textContent=account;el("account").append(option)});
-text("status","唯讀登入成功。可查庫存；正式送單仍關閉。");log("交易主機已就緒。");controls()}});
+text("status",result.environment==="validation"?"驗證環境登入成功；此環境不提供庫存、委託與成交查詢。":"正式環境唯讀登入成功，可以查詢庫存。");log("交易主機已就緒。環境："+result.environment);controls()}});
 el("inventory").addEventListener("click",async()=>{text("status","等待這次庫存查詢的完整回覆……");const result=await call("inventory",{account_index:Number(el("account").value)});if(result?.kind==="inventory"&&result.complete){text("status","庫存查詢完成；可賣量與整體交易對帳仍未驗證。");log("庫存 "+result.row_count+" 筆；"+result.completion_evidence);
 const table=document.createElement("table"),header=table.insertRow();["商品","現股欄位（股）","零股欄位（股）"].forEach(t=>{const th=document.createElement("th");th.textContent=t;header.append(th)});
 (result.rows||[]).forEach(row=>{const tr=table.insertRow();[row.symbol,row.quantity_shares,row.odd_shares].forEach(v=>{const cell=tr.insertCell();cell.textContent=v})});el("holdings").replaceChildren(table)}});
 ["orders","matches"].forEach(action=>el(action).addEventListener("click",async()=>{const result=await call(action,{account_index:Number(el("account").value)});if(result?.row_count!==undefined){text("status","觀測到 "+result.row_count+" 筆回報；尚不能宣告券商清單完整。");log(result.error||"OBSERVATION_ONLY")}}));
 el("logout").addEventListener("click",async()=>{await call("logout");connected=false;el("account").replaceChildren();el("holdings").replaceChildren();el("log").textContent="已清除本頁顯示的帳戶資料。";text("status","已登出。");controls()});
-el("reload").addEventListener("click",async()=>{const result=await call("logout");if(result?.kind==="logout"){connected=false;ready=true;el("account").replaceChildren();el("holdings").replaceChildren();text("status","正在重新建立唯讀程序……");try{const state=await fetch("/api/state").then(r=>r.json());ready=!!state.worker_ready;text("status",ready?"新版唯讀程序已啟動，現在可以登入。":state.error||"程序未就緒");log("已結束舊的唯讀連線程序並重新建立。")}catch(e){ready=false;text("status","重新建立程序失敗。")}controls()}});
-fetch("/api/state").then(r=>r.json()).then(result=>{ready=!!result.worker_ready;connected=!!result.connected;text("status",ready?"本機程序已就緒，請在左側唯讀登入。":result.error||"程序未就緒");if(connected){el("account").replaceChildren();(result.accounts||[]).forEach((a,i)=>{let o=document.createElement("option");o.value=i;o.textContent=a;el("account").append(o)})}controls()}).catch(()=>text("status","無法連接本機程序。"));
+el("reload").addEventListener("click",async()=>{const result=await call("logout");if(result?.kind==="logout"){connected=false;ready=true;el("account").replaceChildren();el("holdings").replaceChildren();text("status","正在重新建立唯讀程序……");try{const state=await fetch("/api/state").then(r=>r.json());acceptState(state);text("status",ready?"唯讀程序版本核對完成，現在可以登入。":state.error||"程序未就緒");log("已結束舊的唯讀連線程序並重新建立。")}catch(e){ready=false;text("status","重新建立程序失敗。")}controls()}});
+fetch("/api/state").then(r=>r.json()).then(result=>{acceptState(result);connected=!!result.connected;text("status",ready?"本機程序已就緒，請在左側唯讀登入。":result.error||"程序未就緒");if(connected){el("account").replaceChildren();(result.accounts||[]).forEach((a,i)=>{let o=document.createElement("option");o.value=i;o.textContent=a;el("account").append(o)})}controls()}).catch(()=>text("status","無法連接本機程序。"));
 </script></body></html>

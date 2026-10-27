@@ -192,6 +192,15 @@ class DriverTests(unittest.TestCase):
         self.assertNotIn("TEST-PASSWORD", str(result))
         self.assertEqual(self.driver.api.login_calls[0][2:], (False, False, False))
 
+    def test_validation_login_does_not_enable_formal_queries(self):
+        result = self.driver.login("TEST-USER", "TEST-PASSWORD", "validation")
+        self.assertTrue(result["connected"])
+        self.assertEqual(result["environment"], "validation")
+        self.assertEqual(self.driver.api.login_calls[0][2:], (True, False, False))
+        for query in (self.driver.inventory, self.driver.reports):
+            with self.assertRaisesRegex(MappingError, "FORMAL_ENVIRONMENT_REQUIRED"):
+                query()
+
     def test_no_order_methods_can_reach_native_api(self):
         self.login()
         for name in ["NewOrder", "ChangeOrderQty", "ChangeOrderPrice"]:

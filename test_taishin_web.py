@@ -6,7 +6,8 @@ import re
 import threading
 import unittest
 
-from taishin_readonly_web import make_handler, LoopbackServer
+from taishin_readonly_web import make_handler, LoopbackServer, WorkerBridge, EXPECTED_WORKER_BUILD
+from unittest.mock import patch
 
 class FakeBridge:
     def __init__(self):
@@ -56,6 +57,16 @@ class WebTests(unittest.TestCase):
                   "X-Momentum-CSRF": self.csrf, "Content-Type": "application/json"}
         result.update(extra)
         return result
+
+    def test_health_requires_session_and_returns_safe_build(self):
+        self.assertEqual(self.call("GET", "/api/health")[0], 403)
+        self.auth()
+        status, _, body = self.call("GET", "/api/health", headers={"Cookie": self.cookie})
+        data = json.loads(body)
+        self.assertEqual(status, 200)
+        self.assertFalse(data["live_enabled"])
+        self.assertIn("server_build", data)
+        self.assertNotIn("accounts", data)
 
     def test_second_listener_cannot_share_this_port(self):
         with self.assertRaises(OSError):
@@ -122,6 +133,38 @@ class WebTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertNotIn(b"FAKE-SECRET", body)
         self.assertEqual(set(self.bridge.calls[-1]), {"cmd", "username", "password", "environment"})
+
+class BridgeRecoveryTests(unittest.TestCase):
+    def setUp(self):
+        self.bridge = WorkerBridge(Path(__file__).parent)
+    def tearDown(self):
+        self.bridge.close()
+    def test_restart_clears_dead_worker_session(self):
+        first = self.bridge.state()
+        self.assertEqual(first["worker_build"], EXPECTED_WORKER_BUILD)
+        self.bridge.connected = True
+        self.bridge.accounts = ["FAKE-ACCOUNT"]
+        old = self.bridge.process
+        old.kill()
+        old.wait(timeout=4)
+        state = self.bridge.state()
+        self.assertFalse(state["connected"])
+        self.assertEqual(state["accounts"], [])
+        self.assertIsNot(self.bridge.process, old)
+        old.stdin.close()
+        old.stdout.close()
+    def test_wrong_worker_version_fails_closed(self):
+        with patch("taishin_readonly_web.EXPECTED_WORKER_BUILD", "wrong-build"):
+            with self.assertRaisesRegex(RuntimeError, "READONLY_WORKER_START_FAILED"):
+                self.bridge.state()
+        self.assertIsNone(self.bridge.process)
+    def test_close_then_start_creates_fresh_worker(self):
+        self.bridge.state()
+        old = self.bridge.process
+        self.bridge.close()
+        self.assertIsNotNone(old.poll())
+        self.assertTrue(self.bridge.state()["worker_ready"])
+        self.assertIsNot(old, self.bridge.process)
 
 if __name__ == "__main__":
     unittest.main()

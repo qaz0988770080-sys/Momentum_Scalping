@@ -175,6 +175,7 @@ class SDKDriver:
         self._auth_result = "NOT_STARTED"
         self._login_started = time.monotonic()
         self.last_login_diagnostics = {}
+        self.environment = None
         self._native_callback_errors = []
         self.api = None
         self.accounts = []
@@ -299,7 +300,7 @@ class SDKDriver:
                 return False
         native = getattr(api, "sorapi", None) if api is not None else None
         sso = getattr(getattr(api, "sso_sorapi", None), "user", None)
-        return dict(auth_result=self._auth_result, native_created=native is not None,
+        return dict(environment=self.environment, auth_result=self._auth_result, native_created=native is not None,
                     native_session_connected=check(lambda: native.IsSessionConnected()),
                     application_ready=check(lambda: api.IsReady()),
                     sso_endpoint_received=bool(getattr(sso, "xtrade2_host", "")),
@@ -349,6 +350,7 @@ class SDKDriver:
         if environment not in {"formal", "validation"}:
             raise MappingError("INVALID_ENVIRONMENT")
         self.logout()
+        self.environment = environment
         self.load()
         self.session = self.collector.reset()
         self.invalidated = False
@@ -397,6 +399,8 @@ class SDKDriver:
 
     def inventory(self, account_index=0, timeout=15):
         with self._inventory_lock:
+            if self.environment != "formal":
+                raise MappingError("FORMAL_ENVIRONMENT_REQUIRED")
             account = self.account(account_index)
             session = self.session
             work_id = self.api.ReqInventoryRayinTotal(account)
@@ -410,6 +414,8 @@ class SDKDriver:
             return result
 
     def reports(self, account_index=0, *, matches_only=False):
+        if self.environment != "formal":
+            raise MappingError("FORMAL_ENVIRONMENT_REQUIRED")
         account = self.account(account_index)
         with self._report_lock:
             rows = [dict(x) for x in self._reports if x.get("account") == account
@@ -424,7 +430,7 @@ class SDKDriver:
     def status(self):
         return dict(connected=self.ready(), readonly=True, live_enabled=False,
                     session=self.session, order_recovery_complete=False,
-                    account_count=len(self.accounts))
+                    account_count=len(self.accounts), environment=self.environment)
 
     def logout(self):
         self.collector.invalidate()
