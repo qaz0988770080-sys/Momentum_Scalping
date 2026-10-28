@@ -2,7 +2,7 @@
 
 雙擊桌面「Momentum 台新期貨」或本資料夾 Momentum.exe。APP 自動啟動及關閉自己的背景服務，不需要開 CMD。期貨專案與金融助理分開。
 
-目前版本在工作台底部顯示 legacy-sso-ini-format-r9。上方為「官方 API 驗證」，下方為 SRF 交易草稿、行情與帳務位置。
+目前版本在工作台底部顯示 native-sso-host-contract-r10。上方為「官方 API 驗證」，下方為 SRF 交易草稿、行情與帳務位置。
 
 ## 登入與登出
 

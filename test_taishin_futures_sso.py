@@ -41,6 +41,16 @@ class SsoFormattingTests(unittest.TestCase):
             client=http.client.HTTPConnection(url.hostname,url.port,timeout=3)
             client.request('GET',url.path+'?'+url.query);response=client.getresponse();self.assertEqual(response.status,200);response.read();client.close()
         self.assertEqual(received,['token=SYNTHETIC']);self.assertEqual(diagnostics,{'sso_format_compatibility':{'changed':True,'config_present':True}})
+    def test_native_host_contract_matches_sdk_generated_url(self):
+        from taishin_futures_sso import broker_sso_url
+        self.assertEqual(broker_sso_url('broker.invalid:8080'),'http://broker.invalid:8080/tc4grpright/getSsoClassID4Api.jsp?')
+        with self.assertRaises(SsoFormatError):broker_sso_url('https://broker.invalid/')
+        body=self.body();received=[]
+        with legacy_sso_endpoint(broker_sso_url('broker.invalid'),{},lambda query:(received.append(query) or body),sdk_host=True) as host:
+            native=urlsplit('http://'+host+'/tc4grpright/getSsoClassID4Api.jsp?TradingAccount=SYNTHETIC&password=FAKE')
+            client=http.client.HTTPConnection(native.hostname,native.port,timeout=3);client.request('GET',native.path+'?'+native.query)
+            response=client.getresponse();self.assertEqual(response.status,200);response.read();client.close()
+        self.assertEqual(received,['TradingAccount=SYNTHETIC&password=FAKE'])
     def test_proxy_never_returns_upstream_error_details(self):
         diagnostics={}
         def fail(query):raise RuntimeError('SECRET-PRIVATE')

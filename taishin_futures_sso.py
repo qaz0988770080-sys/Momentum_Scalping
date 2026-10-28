@@ -3,7 +3,7 @@ import base64,json,secrets,threading,socket,os
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit,urlunsplit
-from urllib.request import build_opener,HTTPRedirectHandler,Request
+from urllib.request import build_opener,HTTPRedirectHandler,Request,ProxyHandler
 
 class SsoFormatError(Exception):pass
 
@@ -54,14 +54,14 @@ class ExclusiveServer(ThreadingHTTPServer):
         super().server_bind()
 
 @contextmanager
-def legacy_sso_endpoint(original,diagnostics,fetch=None):
+def legacy_sso_endpoint(original,diagnostics,fetch=None,*,sdk_host=False):
     target=urlsplit(str(original))
     if target.scheme not in {'http','https'} or not target.netloc or target.username or target.password or target.fragment:
         raise SsoFormatError('SSO_ENDPOINT_INVALID')
     nonce=secrets.token_hex(32);requests=0;lock=threading.Lock()
     def upstream(query):
         url=urlunsplit((target.scheme,target.netloc,target.path,query,''))
-        opener=build_opener(SameOriginRedirect((target.scheme,target.netloc)))
+        opener=build_opener(ProxyHandler({}),SameOriginRedirect((target.scheme,target.netloc)))
         with opener.open(Request(url,headers={'Accept':'application/json'}),timeout=8) as response:
             body=response.read(1048577)
             if len(body)>1048576:raise SsoFormatError('SSO_RESPONSE_TOO_LARGE')
@@ -73,7 +73,7 @@ def legacy_sso_endpoint(original,diagnostics,fetch=None):
             nonlocal requests
             parsed=urlsplit(self.path)
             expected='127.0.0.1:'+str(self.server.server_port)
-            if self.client_address[0]!='127.0.0.1' or self.headers.get('Host')!=expected or parsed.path!='/'+nonce:
+            if self.client_address[0]!='127.0.0.1' or self.headers.get('Host')!=expected or parsed.path!=('/'+nonce+target.path if sdk_host else '/'+nonce):
                 self.send_error(404);return
             with lock:
                 requests+=1
@@ -90,6 +90,21 @@ def legacy_sso_endpoint(original,diagnostics,fetch=None):
     server=ExclusiveServer(('127.0.0.1',0),Handler)
     thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
     local='http://127.0.0.1:'+str(server.server_port)+'/'+nonce
-    if '?' in str(original):local+='?'+target.query
+    if sdk_host:local='127.0.0.1:'+str(server.server_port)+'/'+nonce
+    elif '?' in str(original):local+='?'+target.query
     try:yield local
     finally:server.shutdown();server.server_close();thread.join(timeout=1)
+
+
+def broker_sso_url(host):
+    # The official CheckSSO_Coding contract accepts a host, then constructs
+    # this exact legacy service path itself. Do not guess or replace hosts.
+    text=str(host)
+    if not text or any(char in text for char in '/?#@'):
+        raise SsoFormatError('SSO_HOST_INVALID')
+    parsed=urlsplit('http://'+text)
+    if not parsed.hostname:raise SsoFormatError('SSO_HOST_INVALID')
+    try:port=parsed.port
+    except ValueError:raise SsoFormatError('SSO_HOST_INVALID') from None
+    if port is not None and not 1<=port<=65535:raise SsoFormatError('SSO_HOST_INVALID')
+    return 'http://'+text+'/tc4grpright/getSsoClassID4Api.jsp?'

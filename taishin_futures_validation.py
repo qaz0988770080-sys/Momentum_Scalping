@@ -5,7 +5,7 @@ from taishin_futures_com import pump_com_events
 from taishin_futures_compat import auth_transport_ready,initialize_optional_callbacks,configure_tls12,summarize_authorization,summarize_sso,connection_setting_flags
 
 BUILD='futures-login-20261028-r2'
-DRIVER_REVISION='legacy-sso-ini-format-r9'
+DRIVER_REVISION='native-sso-host-contract-r10'
 class FuturesLoginError(Exception):pass
 
 def load_sdk():
@@ -59,9 +59,9 @@ def load_sdk():
                 self._momentum_diagnostics['test_target_requested']=self._momentum_test_target
                 self._momentum_diagnostics['trade_login_started']=True
             if connect and self.fServerKind==TServerKind.Test:
-                from taishin_futures_sso import legacy_sso_endpoint
+                from taishin_futures_sso import legacy_sso_endpoint,broker_sso_url
                 original=reply.ssoUrl
-                with legacy_sso_endpoint(original,self._momentum_diagnostics) as endpoint:
+                with legacy_sso_endpoint(broker_sso_url(original),self._momentum_diagnostics,sdk_host=True) as endpoint:
                     reply.ssoUrl=endpoint
                     try:result=super().TradeMgr_DoConn(connect,reply)
                     finally:reply.ssoUrl=original
