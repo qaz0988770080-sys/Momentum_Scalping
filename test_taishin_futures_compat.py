@@ -69,7 +69,11 @@ class PrivateComManifestTests(unittest.TestCase):
         root=ET.fromstring(speedy_manifest());ns={'a':'urn:schemas-microsoft-com:asm.v1'}
         files=root.findall('a:file',ns);self.assertEqual([f.attrib['name'] for f in files],['SpeedyAPI.dll'])
         self.assertEqual(len(SPEEDY_CLASSES),len(set(SPEEDY_CLASSES)))
-        self.assertTrue(all(c.attrib['threadingModel']=='Apartment' for c in files[0]))
+        self.assertTrue(all(c.attrib['threadingModel']=='Apartment' for c in files[0] if c.tag.endswith('comClass')))
         self.assertIn('019e6568-9a7e-495d-9b3e-4e280a25bd68',SPEEDY_CLASSES)
+        interfaces=root.findall('a:comInterfaceExternalProxyStub',ns)
+        self.assertEqual(len(interfaces),12)
+        self.assertTrue(all(i.attrib.get('name') and i.attrib.get('tlbid') for i in interfaces))
+        self.assertEqual(files[0].find('a:typelib',ns).attrib['version'],'3.0')
 
 if __name__=='__main__':unittest.main()

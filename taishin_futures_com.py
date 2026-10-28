@@ -4,11 +4,16 @@ from pathlib import Path
 from ctypes import wintypes
 
 SPEEDY_CLASSES=('16f0ac41-388c-4d8c-8d9f-43926d3f3212','019e6568-9a7e-495d-9b3e-4e280a25bd68','a713a529-b390-4f97-870b-de03e488290b','334c85bf-3d5c-42bc-a401-29d5cf360551','acd2d304-d269-4b88-93de-46b5cf5c4b0f','cfbb20a0-5d2f-478d-9249-b533f5e102bd','28799f2e-8a9e-4eda-b468-011c976029e1','effb7b42-b557-4359-8a80-399f13afafe4','4eec8062-44f0-4ea5-b8b2-985f8fa6a3b6','ee0edaa2-b6f3-4dfe-b47b-8c778777dfc6','5b1f18e2-274d-44b5-8f74-c365cec81e14')
+SPEEDY_TYPELIB='4c3acc93-9ec6-44e5-bfc2-883eed3a05da'
+SPEEDY_INTERFACES=('eb336d21-43fc-43ee-9e3f-6feec1f334ff','1b263041-34c8-452b-8712-0927079c89f4','a9ec1c6a-4c4d-4f05-96d5-f247b07e5126','98253f62-229d-4e67-a0b7-f4563aee8145','3331a457-f8f8-4298-acfb-2a287fc97938','96dea5c3-93fb-4962-90ae-f0ebc92897d8','a6a6dee4-33cf-4bac-a64e-aff6fe9b2bf3','3bf3afea-d535-41e3-bd06-e54ba0a133f1','4a819f1f-1497-499d-9bda-3d3f39a67ef6','846fd38f-d1ff-42ab-91b7-a9ebcff354b5','19382553-d24d-420c-adcf-8de6261cf806','1ae89f65-e901-4703-81e5-87a562181f4c')
+SPEEDY_INTERFACE_NAMES=('IBaseMessage','INewOrderMessage','IReplaceOrderMessage','ICancelOrderMessage','IQuoteMessage','IQuoteCancelMessage','IQuoteRequestMessage','IExecutionReportMessage','IOrderStatusRequestMessage','INewsMessage','IOrderConnection','IOrderConnectionEvents')
 _local=threading.local()
 
 def speedy_manifest():
     classes=''.join('<comClass clsid="{'+value+'}" threadingModel="Apartment" />' for value in SPEEDY_CLASSES)
-    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><assemblyIdentity type="win32" name="Momentum.Taishin.Speedy" version="1.0.0.0" processorArchitecture="x86"/><file name="SpeedyAPI.dll">'+classes+'</file></assembly>'
+    interfaces=''.join('<comInterfaceExternalProxyStub name="'+name+'" iid="{'+value+'}" tlbid="{'+SPEEDY_TYPELIB+'}" proxyStubClsid32="{00020424-0000-0000-C000-000000000046}"/>' for name,value in zip(SPEEDY_INTERFACE_NAMES,SPEEDY_INTERFACES))
+    typelib='<typelib tlbid="{'+SPEEDY_TYPELIB+'}" version="3.0" helpdir=""/>'
+    return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0"><assemblyIdentity type="win32" name="Momentum.Taishin.Speedy" version="1.0.0.0" processorArchitecture="x86"/><file name="SpeedyAPI.dll">'+classes+typelib+'</file>'+interfaces+'</assembly>'
 
 def activate_speedy(package):
     if os.name!='nt':return False
