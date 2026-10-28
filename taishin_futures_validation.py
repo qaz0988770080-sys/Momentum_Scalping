@@ -1,8 +1,10 @@
 """Futures read-only login. No order or inventory actions are exposed."""
 import time,sys,threading,re
 from pathlib import Path
+from taishin_futures_compat import auth_transport_ready,initialize_optional_callbacks,configure_tls12,summarize_authorization,summarize_sso
 
 BUILD='futures-login-20261028-r2'
+DRIVER_REVISION='tls12-and-stage-diagnostics-r6'
 class FuturesLoginError(Exception):pass
 
 def load_sdk():
@@ -24,8 +26,41 @@ def load_sdk():
                 self.observer(value)
         def Wrtie_log(self,*args,**kwargs):self.Add(*args,**kwargs)
     SolLog.SolaceLog=SilentLog
+    from taishin_futures_compat import install_windows_identity_decoder
+    install_windows_identity_decoder()
     from MasterFutTradePy.MasterFutTradePY import MasterFutTradePY,TServerKind
+    from MasterFutTradePy.constant import RCode
+    tls_settings=configure_tls12()
     class LoginOnlyAPI(MasterFutTradePY):
+        def __init__(self,*args,**kwargs):
+            super().__init__(*args,**kwargs)
+            initialize_optional_callbacks(self)
+            self._momentum_diagnostics={'tls':dict(tls_settings)}
+        def CheckDAPIResult(self):
+            if not auth_transport_ready(self):
+                self.Fire_OnSystemEvent('MOMENTUM_AUTH_CHANNEL_NOT_READY')
+                return RCode.FAIL
+            return super().CheckDAPIResult()
+        def TradeMgr_DoConn(self,connect,reply):
+            if connect:
+                summary=summarize_authorization(reply)
+                self._momentum_diagnostics['authorization']=summary
+                if self.fServerKind==TServerKind.Release and (
+                        not summary['account_count'] or summary['status_counts']['approved']!=summary['account_count']):
+                    self._momentum_diagnostics['formal_approval_required']=True
+                    return False,'MOMENTUM_FORMAL_APPROVAL_REQUIRED'
+                self._momentum_diagnostics['trade_login_started']=True
+            return super().TradeMgr_DoConn(connect,reply)
+        def DoGWWork(self,connect,reply):
+            if connect and self._momentum_diagnostics.get('formal_approval_required'):
+                return False,'MOMENTUM_FORMAL_APPROVAL_REQUIRED'
+            return super().DoGWWork(connect,reply)
+        def SpdyMgr_OnSSOLoginResultEvent(self,sender,success,message):
+            self._momentum_diagnostics['trade_sso']=summarize_sso(success,message)
+            return super().SpdyMgr_OnSSOLoginResultEvent(sender,success,message)
+        def GWQryMgr_OnSSOLoginResultEvent(self,sender,success,message):
+            self._momentum_diagnostics['query_sso']=summarize_sso(success,message)
+            return super().GWQryMgr_OnSSOLoginResultEvent(sender,success,message)
         def SendNewOrder(self,*args,**kwargs):raise FuturesLoginError('FUTURES_ORDERS_DISABLED')
         def SendDelOrder(self,*args,**kwargs):raise FuturesLoginError('FUTURES_ORDERS_DISABLED')
         def SendChgOrder(self,*args,**kwargs):raise FuturesLoginError('FUTURES_ORDERS_DISABLED')
@@ -40,14 +75,17 @@ class ValidationSession:
         return dict(trade_connected=bool(api and api.IsConn_Trade),
             recovery_complete=bool(api and api.IsRecoverDone),
             account_count=len(api.fAccList) if api else 0,
-            environment=self.environment,system_events=list(self.events),sdk_event_count=self.event_count,sdk_exceptions=list(self.sdk_exceptions),
-            driver_revision='diagnostics-r3',order_enabled=False,live_enabled=False)
+            environment=self.environment,auth_transport_connected=auth_transport_ready(api),system_events=list(self.events),sdk_event_count=self.event_count,sdk_exceptions=list(self.sdk_exceptions),
+            connection_stages=dict(getattr(api,'_momentum_diagnostics',{})),
+            driver_revision=DRIVER_REVISION,order_enabled=False,live_enabled=False)
     def event(self,message):
         self.event_count+=1
         text=str(getattr(message,'message',message)).lower()
+        if text=='momentum_auth_channel_not_ready':self.events=(self.events+['AUTH_CHANNEL_NOT_READY'])[-12:]
         if '[initapisetting]' in text:self.events=(self.events+['SDK_INITIALIZATION_FAILED'])[-12:]
         for markers,category in ((('80040154','-2147221164','class not registered'),'COMPONENT_NOT_REGISTERED'),
-                (('未驗證','驗證失敗','sso檢核失敗'),'AUTHORIZATION_NOT_READY'),
+                (('sso檢核失敗',),'SSO_LOGIN_FAILED'),
+                (('未驗證','驗證失敗'),'AUTHORIZATION_NOT_READY'),
                 (('無有效憑證','憑證失敗'),'CERTIFICATE_NOT_READY'),
                 (('no response','timed out','timeout'),'CONNECTION_TIMEOUT')):
             if any(marker in text for marker in markers):
@@ -56,7 +94,7 @@ class ValidationSession:
         if event=='exception' and Path(frame.f_code.co_filename).name in {'MasterFutTradePY.py','SolClient.py'}:
             kind,exc,_=arg
             if kind not in {StopIteration,GeneratorExit}:
-                item=dict(kind=kind.__name__,function=frame.f_code.co_name,
+                item=dict(kind=kind.__name__,function=frame.f_code.co_name,line=frame.f_lineno,
                     hresult=hex(getattr(exc,'HResult',0)&0xffffffff))
                 name=getattr(exc,'name',None)
                 if isinstance(name,str) and re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.]{0,99}',name):item['identifier']=name
@@ -76,10 +114,14 @@ class ValidationSession:
             deadline=time.monotonic()+timeout
             while True:
                 self.diagnostics=self.snapshot()
+                stages=self.diagnostics['connection_stages']
+                if stages.get('formal_approval_required'):raise FuturesLoginError('FUTURES_FORMAL_APPROVAL_REQUIRED')
+                if stages.get('trade_sso',{}).get('ok') is False:raise FuturesLoginError('FUTURES_TRADE_SSO_FAILED')
                 if (self.diagnostics['trade_connected'] and self.diagnostics['recovery_complete']
                         and self.diagnostics['account_count']>0):
                     return dict(ok=True,connected=True,environment=environment,accounts=[],
                         readonly=True,live_enabled=False,order_enabled=False,diagnostics=self.diagnostics)
+                if 'AUTH_CHANNEL_NOT_READY' in self.events:raise FuturesLoginError('FUTURES_AUTH_CHANNEL_NOT_READY')
                 if 'SDK_INITIALIZATION_FAILED' in self.events:raise FuturesLoginError('FUTURES_SDK_INITIALIZATION_FAILED')
                 if time.monotonic()>=deadline:raise FuturesLoginError('FUTURES_LOGIN_NOT_READY')
                 time.sleep(.05)

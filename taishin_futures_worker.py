@@ -3,7 +3,7 @@ import argparse,json,os,sys
 from pathlib import Path
 from datetime import datetime,timezone
 sys.path.insert(0,str(Path(__file__).resolve().parent))
-from taishin_futures_validation import ValidationSession,FuturesLoginError,BUILD
+from taishin_futures_validation import ValidationSession,FuturesLoginError,BUILD,DRIVER_REVISION
 PREFIX='@@MOMENTUM_READONLY@@'
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--sdk-root');parser.add_argument('--parent-pid',type=int);args=parser.parse_args()
@@ -28,7 +28,8 @@ def main():
     def emit(kind,**values):
         result=dict(kind=kind,worker_build=BUILD,readonly=True,live_enabled=False,order_enabled=False,**values)
         os.write(protocol,(PREFIX+json.dumps(result)+'\n').encode())
-    emit('ready')
+    emit('ready',driver_revision=DRIVER_REVISION)
+    (private/'worker-runtime.json').write_text(json.dumps(dict(worker_pid=os.getpid(),server_pid=args.parent_pid,worker_build=BUILD,driver_revision=DRIVER_REVISION,connected=False,order_enabled=False)),encoding='utf-8')
     for raw in sys.stdin:
         command={};action=''
         try:

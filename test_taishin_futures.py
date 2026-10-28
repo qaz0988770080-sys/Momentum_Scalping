@@ -36,16 +36,24 @@ class FuturesValidationTests(unittest.TestCase):
         self.assertTrue(result['readonly']);self.assertFalse(result['live_enabled']);self.assertFalse(result['order_enabled'])
     def test_system_events_keep_categories_without_raw_details(self):
         session,_=self.make();session.event('FAKE-SECRET FAKE-ACCOUNT SSO檢核失敗')
-        self.assertEqual(session.events,['AUTHORIZATION_NOT_READY'])
+        self.assertEqual(session.events,['SSO_LOGIN_FAILED'])
         self.assertNotIn('FAKE',str(session.snapshot()))
     def test_sdk_exception_trace_keeps_types_not_exception_messages(self):
         session,_=self.make()
-        frame=SimpleNamespace(f_code=SimpleNamespace(co_filename='MasterFutTradePY.py',co_name='Connect_Auth'))
+        frame=SimpleNamespace(f_lineno=1,f_code=SimpleNamespace(co_filename='MasterFutTradePY.py',co_name='Connect_Auth'))
         error=NameError('FAKE-SECRET FAKE-ACCOUNT');error.name='known_identifier'
         session.trace(frame,'exception',(NameError,error,None))
         self.assertEqual(session.sdk_exceptions[0]['kind'],'NameError')
         self.assertEqual(session.sdk_exceptions[0]['identifier'],'known_identifier')
         self.assertNotIn('FAKE',str(session.snapshot()))
+    def test_trade_sso_failure_is_specific_and_not_success(self):
+        session,_=self.make(_momentum_diagnostics={'trade_sso':{'ok':False,'reasons':['TLS_FAILURE']}})
+        with self.assertRaisesRegex(FuturesLoginError,'FUTURES_TRADE_SSO_FAILED'):
+            session.login('FAKE','SECRET','formal',timeout=0)
+    def test_formal_approval_failure_never_becomes_success(self):
+        session,_=self.make(_momentum_diagnostics={'formal_approval_required':True})
+        with self.assertRaisesRegex(FuturesLoginError,'FUTURES_FORMAL_APPROVAL_REQUIRED'):
+            session.login('FAKE','SECRET','formal',timeout=0)
     def test_duplicate_login_requires_new_worker(self):
         session,_=self.make();session.login('FAKE','SECRET',timeout=0)
         with self.assertRaisesRegex(FuturesLoginError,'FUTURES_RESTART_REQUIRED'):session.login('FAKE','SECRET',timeout=0)

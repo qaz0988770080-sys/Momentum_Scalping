@@ -30,6 +30,7 @@ class WorkerBridge:
         self.connected = False
         self.accounts = []
         self.worker_build = None
+        self.worker_revision = None
 
     def _start(self):
         if self.process is not None and self.process.poll() is None:
@@ -39,6 +40,7 @@ class WorkerBridge:
         self.connected = False
         self.accounts = []
         self.worker_build = None
+        self.worker_revision = None
         self.messages = queue.Queue()
         process = subprocess.Popen(
             [self.interpreter, "-u", str(self.root / self.worker_script),
@@ -63,6 +65,7 @@ class WorkerBridge:
                     or result.get("worker_build") != (self.expected_worker_build or EXPECTED_WORKER_BUILD)):
                 raise RuntimeError("READONLY_WORKER_START_FAILED")
             self.worker_build = result["worker_build"]
+            self.worker_revision = result.get("driver_revision")
         except Exception:
             self._stop()
             raise RuntimeError("READONLY_WORKER_START_FAILED") from None
@@ -71,7 +74,7 @@ class WorkerBridge:
         with self.lock:
             self._start()
             return dict(ok=True, worker_ready=True, server_build=SERVER_BUILD,
-                        worker_build=self.worker_build, connected=self.connected,
+                        worker_build=self.worker_build, driver_revision=self.worker_revision, connected=self.connected,
                         accounts=list(self.accounts), readonly=True, live_enabled=False)
 
     def request(self, command):
@@ -105,6 +108,7 @@ class WorkerBridge:
     def _stop(self):
         process, self.process = self.process, None
         self.worker_build = None
+        self.worker_revision = None
         self.connected = False
         self.accounts = []
         if process is not None:
