@@ -76,4 +76,18 @@ class PrivateComManifestTests(unittest.TestCase):
         self.assertTrue(all(i.attrib.get('name') and i.attrib.get('tlbid') for i in interfaces))
         self.assertEqual(files[0].find('a:typelib',ns).attrib['version'],'3.0')
 
+class NativeProgressTests(unittest.TestCase):
+    def test_connection_flags_never_return_values(self):
+        from taishin_futures_compat import connection_setting_flags
+        result=connection_setting_flags(dict(IP='PRIVATE-HOST',Port='SECRET-PORT',LoginID='PRIVATE-ID',LoginPwd='SECRET',OnCreateRun='N'))
+        self.assertTrue(result['IP_present']);self.assertFalse(result['broker_allows_connection']);self.assertNotIn('SECRET',str(result));self.assertNotIn('PRIVATE',str(result))
+    def test_only_authenticated_partial_validation_connection_is_retained(self):
+        from taishin_futures_compat import keep_validation_session
+        snapshot=dict(environment='validation',auth_transport_connected=True,account_count=1)
+        self.assertTrue(keep_validation_session('FUTURES_LOGIN_NOT_READY',snapshot))
+        self.assertFalse(keep_validation_session('FUTURES_LOGIN_NOT_READY',dict(snapshot,environment='formal')))
+        self.assertFalse(keep_validation_session('FUTURES_LOGIN_NOT_READY',dict(snapshot,account_count=0)))
+        self.assertFalse(keep_validation_session('FUTURES_LOGIN_NOT_READY',dict(snapshot,auth_transport_connected=False)))
+        self.assertFalse(keep_validation_session('FUTURES_TRADE_SSO_FAILED',snapshot))
+
 if __name__=='__main__':unittest.main()

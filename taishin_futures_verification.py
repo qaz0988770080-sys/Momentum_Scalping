@@ -39,7 +39,10 @@ class VerificationService:
         plan,digest=read_plan(self.private/'verification-plan.json')
         with self.lock:row=self.db.execute('SELECT * FROM attempts WHERE plan_id=?',(plan['plan_id'],)).fetchone()
         public={k:plan[k] for k in ('symbol','side','price_type','price','quantity','tif','expires_at')}
-        return dict(ok=True,validation_only=True,live_enabled=False,plan_digest=digest,plan=public,
+        api=self.session.api
+        connected=bool(api and api.IsConn_Trade and api.IsRecoverDone and len(api.fAccList)>0)
+        diagnostics=self.session.snapshot() if callable(getattr(self.session,'snapshot',None)) else {}
+        return dict(ok=True,validation_only=True,live_enabled=False,connected=connected,environment=self.session.environment,keep_session=bool(api and self.session.environment=='validation' and not connected),diagnostics=diagnostics,plan_digest=digest,plan=public,
             attempt=dict(state=row['state'],order_no=row['order_no'],report=json.loads(row['report'])) if row else None)
     def require_test_connection(self,plan):
         api=self.session.api

@@ -96,6 +96,7 @@ class WorkerBridge:
                     self.accounts = result.get("accounts", []) if self.connected else []
                 elif "connected" in result:
                     self.connected = bool(result["connected"])
+                    if result.get("environment") in {"formal","validation"}:self.environment=result["environment"]
                 if command["cmd"] == "logout":
                     self._stop()
                 return result

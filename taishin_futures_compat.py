@@ -85,3 +85,16 @@ def summarize_sso(success,message):
             if any(marker in text for marker in markers):reasons.append(category)
         if not reasons:reasons.append('SSO_REJECTED_UNCLASSIFIED')
     return dict(ok=bool(success),reasons=reasons)
+
+
+def connection_setting_flags(values):
+    # Never return endpoints, broker/account IDs, passwords, or connection strings.
+    fields=('IP','Port','LoginID','LoginPwd','BrokerID','ClearMemberID','OnCreateRun')
+    result={name+'_present':bool(str(values.get(name,'') or '').strip()) for name in fields}
+    result['broker_allows_connection']=str(values.get('OnCreateRun','')).strip()=='Y'
+    return result
+
+
+def keep_validation_session(error,snapshot):
+    return bool(error=='FUTURES_LOGIN_NOT_READY' and snapshot.get('environment')=='validation'
+        and snapshot.get('auth_transport_connected') and snapshot.get('account_count',0)>0)

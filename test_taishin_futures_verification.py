@@ -22,6 +22,11 @@ class VerificationTests(unittest.TestCase):
         self.service.on_report(SimpleNamespace(UserDefine=self.account+tag,OrderID='TEST123',OrderStatus=2,CumQty=0))
         return True
     def submit(self):return self.service.submit(self.service.status()['plan_digest'],wait=0)
+    def test_late_recovery_updates_connection_without_new_login_or_order(self):
+        self.api.IsConn_Trade=False;self.api.IsRecoverDone=False
+        self.assertFalse(self.service.status()['connected']);self.assertTrue(self.service.status()['keep_session'])
+        self.api.IsConn_Trade=True;self.api.IsRecoverDone=True
+        self.assertTrue(self.service.status()['connected']);self.assertFalse(self.service.status()['keep_session']);self.assertEqual(self.sent,0)
     def test_test_submission_waits_for_real_report_and_durable_record(self):
         result=self.submit();self.assertEqual(result['attempt']['state'],'ACCEPTED');self.assertEqual(result['attempt']['order_no'],'TEST123')
         self.assertNotIn(self.account,str(result));self.assertFalse(result['live_enabled'])

@@ -5,6 +5,7 @@ from datetime import datetime,timezone
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from taishin_futures_validation import ValidationSession,FuturesLoginError,BUILD,DRIVER_REVISION
 from taishin_futures_com import pump_com_events
+from taishin_futures_compat import keep_validation_session
 from taishin_futures_verification import VerificationService,VerificationError
 PREFIX='@@MOMENTUM_READONLY@@'
 def main():
@@ -42,7 +43,9 @@ def main():
     while True:
         pump_com_events()
         try:raw=incoming.get(timeout=.05)
-        except queue.Empty:continue
+        except queue.Empty:
+            session.collect_native_diagnostics()
+            continue
         if raw is None:break
         command={};action=''
         try:
@@ -55,6 +58,9 @@ def main():
                 if action=='verification_status':result=verification.status()
                 else:result=verification.submit(command.get('plan_digest'))
                 result.pop('live_enabled',None)
+                if session.api is not None and session.environment=='validation':
+                    evidence=dict(ok=bool(result.get('connected')),waiting=bool(result.get('keep_session')),worker_pid=os.getpid(),server_pid=args.parent_pid,worker_build=BUILD,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
+                    (private/'readiness.json').write_text(json.dumps(evidence),encoding='utf-8')
                 emit(action,**result)
                 continue
             if action!='login':raise FuturesLoginError('FUTURES_LOGIN_ONLY')
@@ -70,8 +76,11 @@ def main():
         except Exception as exc:
             code=str(exc) if isinstance(exc,(FuturesLoginError,VerificationError)) else 'FUTURES_SDK_'+type(exc).__name__
             evidence=dict(ok=False,error=code,worker_pid=os.getpid(),server_pid=args.parent_pid,worker_build=BUILD,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
-            emit('error',ok=False,connected=False if action=='login' else bool(session.api and session.api.IsConn_Trade),error=code,diagnostics=evidence)
-            if action=='login':break
+            keep_session=bool(action=='login' and keep_validation_session(code,evidence))
+            if keep_session:
+                code='FUTURES_LOGIN_PENDING';evidence['error']=code;evidence['keep_session']=True
+            emit('error',ok=False,connected=False if action=='login' else bool(session.api and session.api.IsConn_Trade),environment=session.environment,keep_session=keep_session,error=code,diagnostics=evidence)
+            if action=='login' and not keep_session:break
         finally:
             if isinstance(command,dict):command.clear()
             raw=''

@@ -2,10 +2,10 @@
 import time,sys,threading,re
 from pathlib import Path
 from taishin_futures_com import pump_com_events
-from taishin_futures_compat import auth_transport_ready,initialize_optional_callbacks,configure_tls12,summarize_authorization,summarize_sso
+from taishin_futures_compat import auth_transport_ready,initialize_optional_callbacks,configure_tls12,summarize_authorization,summarize_sso,connection_setting_flags
 
 BUILD='futures-login-20261028-r2'
-DRIVER_REVISION='website-validation-only-r7'
+DRIVER_REVISION='legacy-sso-ini-format-r9'
 class FuturesLoginError(Exception):pass
 
 def load_sdk():
@@ -58,11 +58,53 @@ def load_sdk():
                 self._momentum_test_target=bool(self.fServerKind==TServerKind.Test and summary['result'] and summary['account_count']>0)
                 self._momentum_diagnostics['test_target_requested']=self._momentum_test_target
                 self._momentum_diagnostics['trade_login_started']=True
-            return super().TradeMgr_DoConn(connect,reply)
+            if connect and self.fServerKind==TServerKind.Test:
+                from taishin_futures_sso import legacy_sso_endpoint
+                original=reply.ssoUrl
+                with legacy_sso_endpoint(original,self._momentum_diagnostics) as endpoint:
+                    reply.ssoUrl=endpoint
+                    try:result=super().TradeMgr_DoConn(connect,reply)
+                    finally:reply.ssoUrl=original
+            else:result=super().TradeMgr_DoConn(connect,reply)
+            if connect:
+                self.capture_native_settings()
+            return result
+        def capture_native_settings(self):
+            from System.Reflection import BindingFlags,Assembly
+            assembly=Assembly.LoadFile(str(Path(MasterFutTradePy.__file__).parent/'MLApi_Fut_SpdySSO.dll'))
+            typ=assembly.GetType('MLApi_Fut_SpdySSO.TTradeConnData')
+            values={str(f.Name):f.GetValue(None) for f in typ.GetFields(BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic) if str(f.Name) in {'IP','Port','LoginID','LoginPwd','BrokerID','ClearMemberID','OnCreateRun'}}
+            self._momentum_diagnostics['native_settings']=connection_setting_flags(values)
+            values.clear()
+            return dict(self._momentum_diagnostics['native_settings'])
+        def probe_native_endpoint(self):
+            import socket
+            from System.Reflection import BindingFlags,Assembly
+            typ=Assembly.LoadFile(str(Path(MasterFutTradePy.__file__).parent/'MLApi_Fut_SpdySSO.dll')).GetType('MLApi_Fut_SpdySSO.TTradeConnData')
+            flags=BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic
+            options=self.capture_native_settings()
+            if not options['broker_allows_connection'] or not options['IP_present'] or not options['Port_present']:return
+            host=str(typ.GetField('IP',flags).GetValue(None))
+            try:port=int(str(typ.GetField('Port',flags).GetValue(None)))
+            except ValueError:
+                self._momentum_diagnostics['endpoint_probe']='PORT_INVALID';return
+            if not 1<=port<=65535:return
+            try:
+                connection=socket.create_connection((host,port),timeout=2);connection.close();status='TCP_REACHABLE'
+            except socket.gaierror:status='DNS_FAILURE'
+            except TimeoutError:status='TCP_TIMEOUT'
+            except OSError:status='TCP_UNAVAILABLE'
+            self._momentum_diagnostics['endpoint_probe']=status
         def DoGWWork(self,connect,reply):
             if connect and self._momentum_diagnostics.get('formal_approval_required'):
                 return False,'MOMENTUM_FORMAL_APPROVAL_REQUIRED'
             return super().DoGWWork(connect,reply)
+        def SpdyMgr_OnConnEvent(self,sender,connected):
+            self._momentum_diagnostics['native_connection_callback']=dict(seen=True,connected=bool(connected))
+            return super().SpdyMgr_OnConnEvent(sender,connected)
+        def SpdyMgr_OnRecoverEvent(self,sender,finished,message):
+            self._momentum_diagnostics['native_recovery_callback']=dict(seen=True,finished=bool(finished))
+            return super().SpdyMgr_OnRecoverEvent(sender,finished,message)
         def SpdyMgr_OnSSOLoginResultEvent(self,sender,success,message):
             self._momentum_diagnostics['trade_sso']=summarize_sso(success,message)
             return super().SpdyMgr_OnSSOLoginResultEvent(sender,success,message)
@@ -105,7 +147,11 @@ class ValidationSession:
         self.loader=loader;self.api=None;self.diagnostics={};self.environment='validation';self.events=[];self.sdk_exceptions=[];self.event_count=0;self.report_observer=None
     def report(self,value):
         if self.report_observer:self.report_observer(value)
+    def collect_native_diagnostics(self):
+        capture=getattr(self.api,'capture_native_settings',None)
+        if capture:capture()
     def snapshot(self):
+        self.collect_native_diagnostics()
         api=self.api
         return dict(trade_connected=bool(api and api.IsConn_Trade),
             recovery_complete=bool(api and api.IsRecoverDone),
@@ -159,7 +205,10 @@ class ValidationSession:
                         readonly=True,live_enabled=False,order_enabled=False,diagnostics=self.diagnostics)
                 if 'AUTH_CHANNEL_NOT_READY' in self.events:raise FuturesLoginError('FUTURES_AUTH_CHANNEL_NOT_READY')
                 if 'SDK_INITIALIZATION_FAILED' in self.events:raise FuturesLoginError('FUTURES_SDK_INITIALIZATION_FAILED')
-                if time.monotonic()>=deadline:raise FuturesLoginError('FUTURES_LOGIN_NOT_READY')
+                if time.monotonic()>=deadline:
+                    probe=getattr(self.api,'probe_native_endpoint',None)
+                    if probe and self.environment=='validation':probe()
+                    raise FuturesLoginError('FUTURES_LOGIN_NOT_READY')
                 time.sleep(.05)
         finally:
             sys.settrace(old);threading.settrace(old_thread)
