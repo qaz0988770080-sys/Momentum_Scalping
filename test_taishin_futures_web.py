@@ -30,4 +30,39 @@ class FuturesPlanPrivacyTests(unittest.TestCase):
     def test_unknown_paths_cannot_read_private_file(self):
         _,headers,_=self.call('/');cookie=headers['Set-Cookie'].split(';')[0]
         self.assertEqual(self.call('/private/futures-plan.json',cookie)[0],404)
+
+class VerificationRouteTests(unittest.TestCase):
+    def setUp(self):
+        self.root=Path(__file__).parent/'.test-artifacts'/('verify-route-'+uuid.uuid4().hex);self.root.mkdir(parents=True)
+        for name in ('taishin_futures.html','taishin_readonly.html'):(self.root/name).write_text('const csrf="__CSRF__"',encoding='utf-8')
+        class Bridge:
+            def __init__(self):self.calls=[]
+            def request(self,value):self.calls.append(dict(value));return dict(ok=True)
+        self.bridge=Bridge();self.servers=[]
+    def tearDown(self):
+        for server,thread in self.servers:server.shutdown();server.server_close();thread.join(timeout=2)
+    def start(self,page='taishin_futures.html'):
+        server=LoopbackServer(('127.0.0.1',0),make_handler(self.root,self.bridge,page))
+        thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start();self.servers.append((server,thread))
+        conn=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=3);conn.request('GET','/');response=conn.getresponse()
+        cookie=response.getheader('Set-Cookie').split(';')[0];csrf=re.search(rb'const csrf="([^"]+)"',response.read()).group(1).decode();conn.close()
+        return server,cookie,csrf
+    def post(self,server,cookie,csrf,data):
+        conn=http.client.HTTPConnection('127.0.0.1',server.server_port,timeout=3)
+        conn.request('POST','/api/verification-submit',body=json.dumps(data),headers={'Cookie':cookie,'X-Momentum-CSRF':csrf,'Origin':'http://127.0.0.1:'+str(server.server_port),'Content-Type':'application/json'})
+        response=conn.getresponse();status=response.status;response.read();conn.close();return status
+    def test_verification_route_keeps_only_plan_digest(self):
+        server,cookie,csrf=self.start()
+        self.assertEqual(self.post(server,cookie,csrf,{'plan_digest':'a'*64,'symbol':'EVIL','quantity':99999}),200)
+        self.assertEqual(self.bridge.calls,[{'cmd':'verification_submit','plan_digest':'a'*64}])
+    def test_stock_server_never_exposes_verification_submit(self):
+        server,cookie,csrf=self.start('taishin_readonly.html')
+        self.assertEqual(self.post(server,cookie,csrf,{'plan_digest':'a'*64}),404);self.assertEqual(self.bridge.calls,[])
+    def test_verification_submit_requires_csrf(self):
+        server,cookie,csrf=self.start()
+        self.assertEqual(self.post(server,cookie,'WRONG',{'plan_digest':'a'*64}),403);self.assertEqual(self.bridge.calls,[])
+    def test_invalid_plan_digest_rejected_before_worker(self):
+        server,cookie,csrf=self.start()
+        self.assertEqual(self.post(server,cookie,csrf,{'plan_digest':'NOT-A-DIGEST'}),400);self.assertEqual(self.bridge.calls,[])
+
 if __name__=='__main__':unittest.main()

@@ -1,18 +1,23 @@
 """Futures read-only login. No order or inventory actions are exposed."""
 import time,sys,threading,re
 from pathlib import Path
+from taishin_futures_com import pump_com_events
 from taishin_futures_compat import auth_transport_ready,initialize_optional_callbacks,configure_tls12,summarize_authorization,summarize_sso
 
 BUILD='futures-login-20261028-r2'
-DRIVER_REVISION='tls12-and-stage-diagnostics-r6'
+DRIVER_REVISION='website-validation-only-r7'
 class FuturesLoginError(Exception):pass
 
 def load_sdk():
     import logging
     logging.disable(logging.CRITICAL)
+    from importlib.util import find_spec
+    from taishin_futures_com import activate_speedy
+    sdk_spec=find_spec('MasterFutTradePy')
+    if sdk_spec is None:raise FuturesLoginError('FUTURES_SDK_MISSING')
+    activate_speedy(Path(sdk_spec.origin).parent)
     import MasterFutTradePy
     import clr
-    from pathlib import Path
     clr.AddReference(str(Path(MasterFutTradePy.__file__).parent / "NLog.dll"))
     import NLog
     NLog.LogManager.Configuration=NLog.Config.LoggingConfiguration()
@@ -36,6 +41,7 @@ def load_sdk():
             super().__init__(*args,**kwargs)
             initialize_optional_callbacks(self)
             self._momentum_diagnostics={'tls':dict(tls_settings)}
+            self._momentum_test_target=False
         def CheckDAPIResult(self):
             if not auth_transport_ready(self):
                 self.Fire_OnSystemEvent('MOMENTUM_AUTH_CHANNEL_NOT_READY')
@@ -49,6 +55,8 @@ def load_sdk():
                         not summary['account_count'] or summary['status_counts']['approved']!=summary['account_count']):
                     self._momentum_diagnostics['formal_approval_required']=True
                     return False,'MOMENTUM_FORMAL_APPROVAL_REQUIRED'
+                self._momentum_test_target=bool(self.fServerKind==TServerKind.Test and summary['result'] and summary['account_count']>0)
+                self._momentum_diagnostics['test_target_requested']=self._momentum_test_target
                 self._momentum_diagnostics['trade_login_started']=True
             return super().TradeMgr_DoConn(connect,reply)
         def DoGWWork(self,connect,reply):
@@ -61,6 +69,31 @@ def load_sdk():
         def GWQryMgr_OnSSOLoginResultEvent(self,sender,success,message):
             self._momentum_diagnostics['query_sso']=summarize_sso(success,message)
             return super().GWQryMgr_OnSSOLoginResultEvent(sender,success,message)
+        def build_website_verification_message(self,plan):
+            from MasterSpeedyAPI import MSpeedyAPI,SubNewOrderMessage
+            from System import Double
+            from System.Globalization import CultureInfo
+            from decimal import Decimal
+            import SpeedyAPI
+            item=SubNewOrderMessage()
+            item.AccountFlag='1';item.Market=SpeedyAPI.MarketEnum.mFutures
+            item.Side=SpeedyAPI.SideEnum.sBuy;item.Symbol=plan['symbol'];item.OrderQty=plan['quantity']
+            item.Price=Double.Parse(format(Decimal(plan['price']),'.8f'),CultureInfo.InvariantCulture)
+            item.OrderType=SpeedyAPI.OrderTypeEnum.otLimit
+            item.TimeInForce=SpeedyAPI.TimeInForceEnum.tifROD
+            item.PositionEffect=SpeedyAPI.PositionEffectEnum.peOpen
+            item.TradingSessionID=SpeedyAPI.TradingSessionIDEnum.tsAuto
+            return MSpeedyAPI.GetNewOrderMessage(item)
+        def send_website_verification(self,plan,account,tag):
+            # Ordinary SDK entrypoints remain blocked. This is test mode only.
+            if (self.fServerKind!=TServerKind.Test or not self._momentum_test_target
+                    or not self.IsConn_Trade or not self.IsRecoverDone):
+                raise FuturesLoginError('VERIFICATION_TEST_CONNECTION_REQUIRED')
+            if plan['side']!='BUY' or plan['price_type']!='LMT' or plan['tif']!='ROD':
+                raise FuturesLoginError('VERIFICATION_PLAN_INVALID_OR_EXPIRED')
+            message=self.build_website_verification_message(plan)
+            accepted,_=MasterFutTradePY.SendNewOrder(self,message,account,tag,'')
+            return bool(accepted)
         def SendNewOrder(self,*args,**kwargs):raise FuturesLoginError('FUTURES_ORDERS_DISABLED')
         def SendDelOrder(self,*args,**kwargs):raise FuturesLoginError('FUTURES_ORDERS_DISABLED')
         def SendChgOrder(self,*args,**kwargs):raise FuturesLoginError('FUTURES_ORDERS_DISABLED')
@@ -69,7 +102,9 @@ def load_sdk():
 
 class ValidationSession:
     def __init__(self, loader=load_sdk):
-        self.loader=loader;self.api=None;self.diagnostics={};self.environment='validation';self.events=[];self.sdk_exceptions=[];self.event_count=0
+        self.loader=loader;self.api=None;self.diagnostics={};self.environment='validation';self.events=[];self.sdk_exceptions=[];self.event_count=0;self.report_observer=None
+    def report(self,value):
+        if self.report_observer:self.report_observer(value)
     def snapshot(self):
         api=self.api
         return dict(trade_connected=bool(api and api.IsConn_Trade),
@@ -106,13 +141,14 @@ class ValidationSession:
         self.environment=environment
         API,modes=self.loader()
         if hasattr(API,'_ms_logger_class'):API._ms_logger_class.observer=self.event
-        self.api=API();self.api.OnSystemEvent=self.event
+        self.api=API();self.api.OnSystemEvent=self.event;self.api.OnResultReportEvent=self.report
         old=sys.gettrace();old_thread=threading.gettrace()
         sys.settrace(self.trace);threading.settrace(self.trace)
         try:
             self.api.Connect(username,password,modes[environment],False)
             deadline=time.monotonic()+timeout
             while True:
+                pump_com_events()
                 self.diagnostics=self.snapshot()
                 stages=self.diagnostics['connection_stages']
                 if stages.get('formal_approval_required'):raise FuturesLoginError('FUTURES_FORMAL_APPROVAL_REQUIRED')

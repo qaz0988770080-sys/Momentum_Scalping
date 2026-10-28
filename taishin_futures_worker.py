@@ -1,9 +1,11 @@
 """One validation login per isolated 32-bit process, no trading commands."""
-import argparse,json,os,sys
+import argparse,json,os,sys,queue,threading
 from pathlib import Path
 from datetime import datetime,timezone
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from taishin_futures_validation import ValidationSession,FuturesLoginError,BUILD,DRIVER_REVISION
+from taishin_futures_com import pump_com_events
+from taishin_futures_verification import VerificationService,VerificationError
 PREFIX='@@MOMENTUM_READONLY@@'
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--sdk-root');parser.add_argument('--parent-pid',type=int);args=parser.parse_args()
@@ -25,12 +27,23 @@ def main():
         import threading
         threading.Thread(target=watch,daemon=True).start()
     session=ValidationSession()
+    verification=VerificationService(session,private)
     def emit(kind,**values):
         result=dict(kind=kind,worker_build=BUILD,readonly=True,live_enabled=False,order_enabled=False,**values)
         os.write(protocol,(PREFIX+json.dumps(result)+'\n').encode())
     emit('ready',driver_revision=DRIVER_REVISION)
     (private/'worker-runtime.json').write_text(json.dumps(dict(worker_pid=os.getpid(),server_pid=args.parent_pid,worker_build=BUILD,driver_revision=DRIVER_REVISION,connected=False,order_enabled=False)),encoding='utf-8')
-    for raw in sys.stdin:
+    incoming=queue.Queue()
+    def read_commands():
+        for line in sys.stdin:
+            incoming.put(line);line=''
+        incoming.put(None)
+    threading.Thread(target=read_commands,daemon=True).start()
+    while True:
+        pump_com_events()
+        try:raw=incoming.get(timeout=.05)
+        except queue.Empty:continue
+        if raw is None:break
         command={};action=''
         try:
             if len(raw)>8192:raise FuturesLoginError('COMMAND_TOO_LARGE')
@@ -38,6 +51,12 @@ def main():
             if not isinstance(command,dict):raise FuturesLoginError('INVALID_COMMAND')
             action=command.get('cmd')
             if action=='logout':emit('logout',ok=True,connected=False);break
+            if action in {'verification_status','verification_submit'}:
+                if action=='verification_status':result=verification.status()
+                else:result=verification.submit(command.get('plan_digest'))
+                result.pop('live_enabled',None)
+                emit(action,**result)
+                continue
             if action!='login':raise FuturesLoginError('FUTURES_LOGIN_ONLY')
             username=command.pop('username','');password=command.pop('password','')
             try:
@@ -49,10 +68,10 @@ def main():
             emit('login',**result)
             evidence=dict(ok=True,worker_pid=os.getpid(),server_pid=args.parent_pid,worker_build=BUILD,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
         except Exception as exc:
-            code=str(exc) if isinstance(exc,FuturesLoginError) else 'FUTURES_SDK_'+type(exc).__name__
+            code=str(exc) if isinstance(exc,(FuturesLoginError,VerificationError)) else 'FUTURES_SDK_'+type(exc).__name__
             evidence=dict(ok=False,error=code,worker_pid=os.getpid(),server_pid=args.parent_pid,worker_build=BUILD,checked_at=datetime.now(timezone.utc).isoformat(),**session.snapshot())
-            emit('error',ok=False,connected=False,error=code,diagnostics=evidence)
-            break
+            emit('error',ok=False,connected=False if action=='login' else bool(session.api and session.api.IsConn_Trade),error=code,diagnostics=evidence)
+            if action=='login':break
         finally:
             if isinstance(command,dict):command.clear()
             raw=''

@@ -31,6 +31,7 @@ class WorkerBridge:
         self.accounts = []
         self.worker_build = None
         self.worker_revision = None
+        self.environment = None
 
     def _start(self):
         if self.process is not None and self.process.poll() is None:
@@ -41,6 +42,7 @@ class WorkerBridge:
         self.accounts = []
         self.worker_build = None
         self.worker_revision = None
+        self.environment = None
         self.messages = queue.Queue()
         process = subprocess.Popen(
             [self.interpreter, "-u", str(self.root / self.worker_script),
@@ -74,7 +76,7 @@ class WorkerBridge:
         with self.lock:
             self._start()
             return dict(ok=True, worker_ready=True, server_build=SERVER_BUILD,
-                        worker_build=self.worker_build, driver_revision=self.worker_revision, connected=self.connected,
+                        worker_build=self.worker_build, driver_revision=self.worker_revision, environment=self.environment, connected=self.connected,
                         accounts=list(self.accounts), readonly=True, live_enabled=False)
 
     def request(self, command):
@@ -90,6 +92,7 @@ class WorkerBridge:
                     raise RuntimeError("READONLY_PROTOCOL_MISMATCH")
                 if command["cmd"] == "login":
                     self.connected = bool(result.get("connected", False))
+                    self.environment = result.get("environment") if self.connected else None
                     self.accounts = result.get("accounts", []) if self.connected else []
                 elif "connected" in result:
                     self.connected = bool(result["connected"])
@@ -109,6 +112,7 @@ class WorkerBridge:
         process, self.process = self.process, None
         self.worker_build = None
         self.worker_revision = None
+        self.environment = None
         self.connected = False
         self.accounts = []
         if process is not None:
@@ -233,6 +237,8 @@ def make_handler(root, bridge, page_name="taishin_readonly.html"):
                 actions = {"/api/login": "login", "/api/inventory": "inventory",
                            "/api/orders": "orders", "/api/matches": "matches",
                            "/api/logout": "logout"}
+                if page_name=='taishin_futures.html':
+                    actions.update({'/api/verification-status':'verification_status','/api/verification-submit':'verification_submit'})
                 action = actions.get(self.path)
                 if action is None:
                     return self.respond(404, dict(error="READ_ONLY_ACTION_NOT_AVAILABLE"))
@@ -251,6 +257,10 @@ def make_handler(root, bridge, page_name="taishin_readonly.html"):
                     if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index <= 100:
                         raise ValueError()
                     command["account_index"] = index
+                elif action=='verification_submit':
+                    digest=body.pop('plan_digest','')
+                    if not isinstance(digest,str) or len(digest)!=64 or any(c not in '0123456789abcdef' for c in digest):raise ValueError()
+                    command['plan_digest']=digest
                 body.clear()
                 result = bridge.request(command)
                 return self.respond(200, result)

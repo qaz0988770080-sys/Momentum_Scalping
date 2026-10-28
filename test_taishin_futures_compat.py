@@ -62,4 +62,14 @@ class ConnectionDiagnosticsTests(unittest.TestCase):
         self.assertEqual(summarize_sso(False,'SECRET arbitrary detail'),{'ok':False,'reasons':['SSO_REJECTED_UNCLASSIFIED']})
         self.assertEqual(summarize_sso(True,'SECRET'),{'ok':True,'reasons':[]})
 
+class PrivateComManifestTests(unittest.TestCase):
+    def test_manifest_maps_only_official_speedy_file_and_unique_classes(self):
+        import xml.etree.ElementTree as ET
+        from taishin_futures_com import speedy_manifest,SPEEDY_CLASSES
+        root=ET.fromstring(speedy_manifest());ns={'a':'urn:schemas-microsoft-com:asm.v1'}
+        files=root.findall('a:file',ns);self.assertEqual([f.attrib['name'] for f in files],['SpeedyAPI.dll'])
+        self.assertEqual(len(SPEEDY_CLASSES),len(set(SPEEDY_CLASSES)))
+        self.assertTrue(all(c.attrib['threadingModel']=='Apartment' for c in files[0]))
+        self.assertIn('019e6568-9a7e-495d-9b3e-4e280a25bd68',SPEEDY_CLASSES)
+
 if __name__=='__main__':unittest.main()
