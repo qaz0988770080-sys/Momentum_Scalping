@@ -57,4 +57,26 @@ class FuturesValidationTests(unittest.TestCase):
     def test_duplicate_login_requires_new_worker(self):
         session,_=self.make();session.login('FAKE','SECRET',timeout=0)
         with self.assertRaisesRegex(FuturesLoginError,'FUTURES_RESTART_REQUIRED'):session.login('FAKE','SECRET',timeout=0)
+    def test_recovery_requested_once_after_real_test_connection(self):
+        session,api=self.make(IsConn_Trade=False,IsRecoverDone=False,_momentum_test_target=True,_momentum_diagnostics={})
+        requested=[];api.DoRecover=lambda:requested.append('recover')
+        session.api=api
+        session.snapshot();self.assertEqual(requested,[])
+        api.IsConn_Trade=True
+        session.snapshot();session.snapshot()
+        self.assertEqual(requested,['recover']);self.assertFalse(api.IsRecoverDone)
+        self.assertTrue(api._momentum_diagnostics['recovery_requested'])
+        api.IsRecoverDone=True
+        self.assertTrue(session.snapshot()['recovery_complete'])
+    def test_recovery_not_requested_for_unproven_test_or_formal(self):
+        session,api=self.make(IsRecoverDone=False,_momentum_test_target=False)
+        api.DoRecover=lambda:self.fail('unexpected recovery');session.api=api
+        session.snapshot();api._momentum_test_target=True;session.environment='formal';session.snapshot()
+    def test_recovery_failure_is_sanitized_and_not_retried(self):
+        session,api=self.make(IsRecoverDone=False,_momentum_test_target=True,_momentum_diagnostics={})
+        def fail():raise RuntimeError('PRIVATE-SECRET')
+        api.DoRecover=fail;session.api=api;session.snapshot()
+        api.DoRecover=lambda:self.fail('must not retry');state=session.snapshot()
+        self.assertEqual(state['connection_stages']['recovery_request_error'],'RuntimeError')
+        self.assertNotIn('PRIVATE',str(state));self.assertFalse(state['recovery_complete'])
 if __name__=='__main__':unittest.main()

@@ -67,14 +67,16 @@ class PrivateComManifestTests(unittest.TestCase):
         import xml.etree.ElementTree as ET
         from taishin_futures_com import speedy_manifest,SPEEDY_CLASSES
         root=ET.fromstring(speedy_manifest());ns={'a':'urn:schemas-microsoft-com:asm.v1'}
-        files=root.findall('a:file',ns);self.assertEqual([f.attrib['name'] for f in files],['SpeedyAPI.dll'])
+        files=root.findall('a:file',ns);self.assertEqual([f.attrib['name'] for f in files],['SpeedyAPI.dll','TWCACAPIX.dll','MLSecuritiesATL.dll'])
         self.assertEqual(len(SPEEDY_CLASSES),len(set(SPEEDY_CLASSES)))
         self.assertTrue(all(c.attrib['threadingModel']=='Apartment' for c in files[0] if c.tag.endswith('comClass')))
         self.assertIn('019e6568-9a7e-495d-9b3e-4e280a25bd68',SPEEDY_CLASSES)
         interfaces=root.findall('a:comInterfaceExternalProxyStub',ns)
-        self.assertEqual(len(interfaces),12)
+        self.assertEqual(len(interfaces),14)
         self.assertTrue(all(i.attrib.get('name') and i.attrib.get('tlbid') for i in interfaces))
         self.assertEqual(files[0].find('a:typelib',ns).attrib['version'],'3.0')
+        self.assertEqual([f.find('a:comClass',ns).attrib['threadingModel'] for f in files[1:]],['Both','Apartment'])
+        self.assertTrue(all(f.find('a:typelib',ns).attrib['version']=='1.0' for f in files[1:]))
 
 class NativeProgressTests(unittest.TestCase):
     def test_connection_flags_never_return_values(self):

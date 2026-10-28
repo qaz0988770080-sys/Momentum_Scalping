@@ -21,6 +21,12 @@ class SsoFormattingTests(unittest.TestCase):
         decoded=base64.b64decode(json.loads(after)['user_data']).decode('cp950')
         payload=json.loads(decoded,strict=False)
         self.assertEqual(payload['iniFile'][0]['data'],self.ini)
+    def test_source_shape_distinguishes_empty_value_without_exposing_it(self):
+        body=self.body('[SYSTEM]'+chr(10)+'IP='+chr(10)+'Port=9001'+chr(10)+'LoginID='+chr(10)+'OnCreateRun=Y')
+        output,flags=normalize_sso_reply(body)
+        shape=flags['source_shape'];self.assertTrue(shape['system_section_present']);self.assertTrue(shape['ip_key_present']);self.assertFalse(shape['ip_value_present']);self.assertEqual(shape['line_endings'],'LF')
+        data=json.loads(base64.b64decode(json.loads(output)['user_data']).decode(),strict=False)['iniFile'][0]['data']
+        self.assertIn(chr(13)+chr(10),data);self.assertEqual(data.splitlines(),self.ini.splitlines())
     def test_without_config_is_not_fabricated(self):
         before=b'{"result":false}'
         self.assertEqual(normalize_sso_reply(before),(before,{'changed':False,'config_present':False}))
@@ -40,7 +46,7 @@ class SsoFormattingTests(unittest.TestCase):
             self.assertEqual(received,[])
             client=http.client.HTTPConnection(url.hostname,url.port,timeout=3)
             client.request('GET',url.path+'?'+url.query);response=client.getresponse();self.assertEqual(response.status,200);response.read();client.close()
-        self.assertEqual(received,['token=SYNTHETIC']);self.assertEqual(diagnostics,{'sso_format_compatibility':{'changed':True,'config_present':True}})
+        self.assertEqual(received,['token=SYNTHETIC']);self.assertTrue(diagnostics['sso_format_compatibility']['changed']);self.assertTrue(diagnostics['sso_format_compatibility']['config_present']);self.assertNotIn('SYNTHETIC',str(diagnostics))
     def test_native_host_contract_matches_sdk_generated_url(self):
         from taishin_futures_sso import broker_sso_url
         self.assertEqual(broker_sso_url('broker.invalid:8080'),'http://broker.invalid:8080/tc4grpright/getSsoClassID4Api.jsp?')

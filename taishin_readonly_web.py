@@ -32,6 +32,7 @@ class WorkerBridge:
         self.worker_build = None
         self.worker_revision = None
         self.environment = None
+        self._session_credentials = None
 
     def _start(self):
         if self.process is not None and self.process.poll() is None:
@@ -77,15 +78,24 @@ class WorkerBridge:
             self._start()
             return dict(ok=True, worker_ready=True, server_build=SERVER_BUILD,
                         worker_build=self.worker_build, driver_revision=self.worker_revision, environment=self.environment, connected=self.connected,
-                        accounts=list(self.accounts), readonly=True, live_enabled=False)
+                        accounts=list(self.accounts), reconnect_available=bool(self._session_credentials), readonly=True, live_enabled=False)
 
     def request(self, command):
         with self.lock:
+            command=dict(command)
+            remember=command.pop('remember_session',False) is True
+            reconnect=command.pop('_session_reconnect',False) is True
+            credentials=None
+            if command.get('cmd')=='login':
+                if not reconnect:self._session_credentials=None
+                if remember and self.worker_script=='taishin_futures_worker.py' and command.get('environment')=='validation':
+                    credentials=(command.get('username'),command.get('password'),'validation')
+            if command.get('cmd')=='logout':self._session_credentials=None
             try:
                 self._start()
                 self.process.stdin.write(json.dumps(command, ensure_ascii=False) + "\n")
                 self.process.stdin.flush()
-                result = self.messages.get(timeout=48 if command["cmd"] == "login" else 22)
+                result = self.messages.get(timeout=(70 if self.worker_script=="taishin_futures_worker.py" else 48) if command["cmd"] == "login" else 22)
                 if result.get("kind") == "exited":
                     raise RuntimeError("READONLY_WORKER_EXITED")
                 if result.get("kind") not in {command["cmd"], "error"}:
@@ -97,8 +107,15 @@ class WorkerBridge:
                 elif "connected" in result:
                     self.connected = bool(result["connected"])
                     if result.get("environment") in {"formal","validation"}:self.environment=result["environment"]
+                if command['cmd']=='login':
+                    diagnostic=result.get('diagnostics') or {}
+                    authorization=diagnostic.get('connection_stages',{}).get('authorization',{})
+                    if credentials and diagnostic.get('auth_transport_connected') and authorization.get('result') is True and authorization.get('account_count',0)>0:
+                        self._session_credentials=credentials
+                    elif authorization.get('result') is False:self._session_credentials=None
                 if command["cmd"] == "logout":
                     self._stop()
+                result['reconnect_available']=bool(self._session_credentials)
                 return result
             except queue.Empty:
                 self._stop()
@@ -108,6 +125,15 @@ class WorkerBridge:
                 self._stop()
                 return dict(kind="error", ok=False, error="READONLY_WORKER_UNAVAILABLE",
                             connected=False, readonly=True, live_enabled=False)
+
+    def reconnect(self):
+        with self.lock:
+            if self.worker_script!='taishin_futures_worker.py' or self._session_credentials is None:
+                return dict(ok=False,error='SESSION_RECONNECT_NOT_AVAILABLE',connected=False,reconnect_available=False)
+            username,password,environment=self._session_credentials
+            self._stop()
+            try:return self.request(dict(cmd='login',username=username,password=password,environment=environment,remember_session=True,_session_reconnect=True))
+            finally:username=password=''
 
     def _stop(self):
         process, self.process = self.process, None
@@ -133,6 +159,7 @@ class WorkerBridge:
 
     def close(self):
         with self.lock:
+            self._session_credentials=None
             self._stop()
 
 def make_handler(root, bridge, page_name="taishin_readonly.html"):
@@ -239,10 +266,11 @@ def make_handler(root, bridge, page_name="taishin_readonly.html"):
                            "/api/orders": "orders", "/api/matches": "matches",
                            "/api/logout": "logout"}
                 if page_name=='taishin_futures.html':
-                    actions.update({'/api/verification-status':'verification_status','/api/verification-submit':'verification_submit'})
+                    actions.update({'/api/verification-status':'verification_status','/api/verification-submit':'verification_submit','/api/reconnect':'reconnect'})
                 action = actions.get(self.path)
                 if action is None:
                     return self.respond(404, dict(error="READ_ONLY_ACTION_NOT_AVAILABLE"))
+                if action=='reconnect':return self.respond(200,bridge.reconnect())
                 command = dict(cmd=action)
                 if action == "login":
                     username, password = body.pop("username", ""), body.pop("password", "")
@@ -251,6 +279,10 @@ def make_handler(root, bridge, page_name="taishin_readonly.html"):
                             or not isinstance(password, str) or not 0 < len(password) <= 4096
                             or environment not in {"formal", "validation"}):
                         raise ValueError()
+                    if page_name=='taishin_futures.html':
+                        remember=body.pop('remember_session',False)
+                        if type(remember) is not bool:raise ValueError()
+                        command['remember_session']=remember
                     command.update(username=username.strip(), password=password, environment=environment)
                     username = password = ""
                 elif action in {"inventory", "orders", "matches"}:

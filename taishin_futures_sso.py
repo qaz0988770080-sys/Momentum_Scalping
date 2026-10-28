@@ -1,11 +1,26 @@
 """Loopback-only compatibility for the official SDK's legacy SSO INI parser."""
-import base64,json,secrets,threading,socket,os
+import base64,json,secrets,threading,socket,os,configparser
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit,urlunsplit
 from urllib.request import build_opener,HTTPRedirectHandler,Request,ProxyHandler
 
 class SsoFormatError(Exception):pass
+
+def ini_shape(data):
+    parser=configparser.ConfigParser(interpolation=None,strict=False,allow_no_value=True)
+    shape=dict(system_section_present=False,ip_key_present=False,ip_value_present=False,port_value_present=False,proxy_ip_value_present=False,login_id_value_present=False,login_pwd_value_present=False,oncreate_value_present=False)
+    try:
+        parser.read_string(data)
+        sections=[name for name in parser.sections() if name.casefold()=='system']
+        if len(sections)==1:
+            section=sections[0];shape['system_section_present']=True
+            shape['ip_key_present']=parser.has_option(section,'ip')
+            for key,name in [('ip','ip_value_present'),('proxyip','proxy_ip_value_present'),('port','port_value_present'),('loginid','login_id_value_present'),('loginpwd','login_pwd_value_present'),('oncreaterun','oncreate_value_present')]:
+                shape[name]=bool((parser.get(section,key,fallback='') or '').strip())
+    except configparser.Error:shape['ini_parse_error']=True
+    shape['line_endings']='CRLF' if chr(13)+chr(10) in data else 'LF' if chr(10) in data else 'CR' if chr(13) in data else 'NONE'
+    return shape
 
 def normalize_sso_reply(body,native_encoding=None):
     """Change JSON formatting only; keep every broker-provided INI value."""
@@ -28,6 +43,9 @@ def normalize_sso_reply(body,native_encoding=None):
     # The native parser extracts raw INI text between JSON markers. Reject any
     # characters it cannot represent, rather than truncate or alter a value.
     if '"' in data or chr(92) in data:raise SsoFormatError('SSO_CONFIG_LEGACY_VALUE_UNSUPPORTED')
+    shape=ini_shape(data)
+    configuration_shapes={item['fname']:ini_shape(item['data']) for item in files if isinstance(item,dict) and item.get('fname') in {'SYS_SPDY.ini','SYS_SPDY_OMS.ini'} and isinstance(item.get('data'),str)}
+    data=data.replace(chr(13)+chr(10),chr(10)).replace(chr(13),chr(10)).replace(chr(10),chr(13)+chr(10))
     token='MOMENTUM_INI_'+secrets.token_hex(16)
     rewritten=[]
     for item in files:
@@ -38,7 +56,7 @@ def normalize_sso_reply(body,native_encoding=None):
     canonical=canonical.replace(json.dumps(token),'"'+data+'"',1)
     result['user_data']=base64.b64encode(canonical.encode(encoding,errors='strict')).decode('ascii')
     output=json.dumps(result,separators=(',',':'),ensure_ascii=True).encode('utf-8')
-    return output,dict(changed=output!=body,config_present=True)
+    return output,dict(changed=output!=body,config_present=True,source_shape=shape,configuration_shapes=configuration_shapes)
 
 class SameOriginRedirect(HTTPRedirectHandler):
     def __init__(self,origin):self.origin=origin

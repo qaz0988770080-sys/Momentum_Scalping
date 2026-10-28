@@ -5,7 +5,7 @@ from taishin_futures_com import pump_com_events
 from taishin_futures_compat import auth_transport_ready,initialize_optional_callbacks,configure_tls12,summarize_authorization,summarize_sso,connection_setting_flags
 
 BUILD='futures-login-20261028-r2'
-DRIVER_REVISION='native-sso-host-contract-r10'
+DRIVER_REVISION='explicit-transaction-recovery-r17'
 class FuturesLoginError(Exception):pass
 
 def load_sdk():
@@ -20,6 +20,12 @@ def load_sdk():
     import clr
     clr.AddReference(str(Path(MasterFutTradePy.__file__).parent / "NLog.dll"))
     import NLog
+    recorder=None
+    diagnostic_dll=Path(__file__).resolve().parent/'MomentumDiagnostics.r15.dll'
+    if diagnostic_dll.is_file():
+        clr.AddReference(str(diagnostic_dll))
+        from MomentumDiagnostics import ExceptionRecorder
+        recorder=ExceptionRecorder;recorder.Start()
     NLog.LogManager.Configuration=NLog.Config.LoggingConfiguration()
     from MasterFutTradePy import SolLog
     class SilentLog:
@@ -42,6 +48,7 @@ def load_sdk():
             initialize_optional_callbacks(self)
             self._momentum_diagnostics={'tls':dict(tls_settings)}
             self._momentum_test_target=False
+            self._momentum_recorder=recorder
         def CheckDAPIResult(self):
             if not auth_transport_ready(self):
                 self.Fire_OnSystemEvent('MOMENTUM_AUTH_CHANNEL_NOT_READY')
@@ -63,7 +70,9 @@ def load_sdk():
                 original=reply.ssoUrl
                 with legacy_sso_endpoint(broker_sso_url(original),self._momentum_diagnostics,sdk_host=True) as endpoint:
                     reply.ssoUrl=endpoint
-                    try:result=super().TradeMgr_DoConn(connect,reply)
+                    try:
+                        result=super().TradeMgr_DoConn(connect,reply)
+                        if self._momentum_recorder:self._momentum_recorder.ObserveConnection(self.fSpdyMgr)
                     finally:reply.ssoUrl=original
             else:result=super().TradeMgr_DoConn(connect,reply)
             if connect:
@@ -73,8 +82,20 @@ def load_sdk():
             from System.Reflection import BindingFlags,Assembly
             assembly=Assembly.LoadFile(str(Path(MasterFutTradePy.__file__).parent/'MLApi_Fut_SpdySSO.dll'))
             typ=assembly.GetType('MLApi_Fut_SpdySSO.TTradeConnData')
-            values={str(f.Name):f.GetValue(None) for f in typ.GetFields(BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic) if str(f.Name) in {'IP','Port','LoginID','LoginPwd','BrokerID','ClearMemberID','OnCreateRun'}}
+            values={str(f.Name):f.GetValue(None) for f in typ.GetFields(BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic) if str(f.Name) in {'IP','ProxyIP','SrvType','NeedCA','Port','LoginID','LoginPwd','BrokerID','ClearMemberID','OnCreateRun'}}
             self._momentum_diagnostics['native_settings']=connection_setting_flags(values)
+            if self._momentum_recorder:
+                self._momentum_diagnostics['native_connection_object_created']=bool(self._momentum_recorder.HasConnectionObject(self.fSpdyMgr))
+                self._momentum_recorder.ObserveConnection(self.fSpdyMgr)
+                manager=self._momentum_recorder.ManagerSnapshot(self.fSpdyMgr)
+                self._momentum_diagnostics['native_manager_state']=dict(primary_logged_in=bool(manager.PrimaryLoggedIn),primary_recovery=str(manager.PrimaryRecovery),identity_count=int(manager.IdentityCount),identity_object_count=int(manager.IdentityObjectCount),identity_attempts=int(manager.IdentityAttempts),identity_states=[str(x) for x in manager.IdentityStates])
+                observed=self._momentum_recorder.ConnectionSnapshot()
+                self._momentum_diagnostics['native_transport_events']=dict(attached=bool(observed.Attached),connected_seen=bool(observed.ConnectedSeen),disconnected_seen=bool(observed.DisconnectedSeen),logon_seen=bool(observed.LogonSeen),logon_result=int(observed.LogonResult),logon_result_name=str(observed.ResultName),connection_id=int(observed.BrokerCode),recovery_seen=bool(observed.RecoverySeen),recovery_code=int(observed.RecoveryCode),attach_error=str(observed.AttachError))
+                previous=self._momentum_diagnostics.get('managed_exceptions',[])
+                for item in self._momentum_recorder.Take():
+                    record=dict(kind=str(item.Kind),hresult=str(item.HResult),source=str(item.Source),member=str(item.Member))
+                    if record not in previous:previous.append(record)
+                self._momentum_diagnostics['managed_exceptions']=previous[-20:]
             values.clear()
             return dict(self._momentum_diagnostics['native_settings'])
         def probe_native_endpoint(self):
@@ -83,8 +104,10 @@ def load_sdk():
             typ=Assembly.LoadFile(str(Path(MasterFutTradePy.__file__).parent/'MLApi_Fut_SpdySSO.dll')).GetType('MLApi_Fut_SpdySSO.TTradeConnData')
             flags=BindingFlags.Static|BindingFlags.Public|BindingFlags.NonPublic
             options=self.capture_native_settings()
-            if not options['broker_allows_connection'] or not options['IP_present'] or not options['Port_present']:return
-            host=str(typ.GetField('IP',flags).GetValue(None))
+            if not options['broker_allows_connection'] or not options['Port_present']:return
+            key='ProxyIP' if options['server_type']=='stSpdyProxy' else 'IP'
+            if not options.get(key+'_present'):return
+            host=str(typ.GetField(key,flags).GetValue(None))
             try:port=int(str(typ.GetField('Port',flags).GetValue(None)))
             except ValueError:
                 self._momentum_diagnostics['endpoint_probe']='PORT_INVALID';return
@@ -144,10 +167,23 @@ def load_sdk():
 
 class ValidationSession:
     def __init__(self, loader=load_sdk):
-        self.loader=loader;self.api=None;self.diagnostics={};self.environment='validation';self.events=[];self.sdk_exceptions=[];self.event_count=0;self.report_observer=None
+        self.loader=loader;self.api=None;self.diagnostics={};self.environment='validation';self.events=[];self.sdk_exceptions=[];self.event_count=0;self.report_observer=None;self._recovery_requested=False
     def report(self,value):
         if self.report_observer:self.report_observer(value)
     def collect_native_diagnostics(self):
+        api=self.api
+        if (api and not self._recovery_requested and self.environment=='validation'
+                and getattr(api,'_momentum_test_target',False) and api.IsConn_Trade
+                and not api.IsRecoverDone):
+            # SDK recovery is explicit. Never infer completion or repeat on polling.
+            recover=getattr(api,'DoRecover',None)
+            if callable(recover):
+                self._recovery_requested=True
+                stages=getattr(api,'_momentum_diagnostics',None)
+                if stages is not None:stages['recovery_requested']=True
+                try:recover()
+                except Exception as exc:
+                    if stages is not None:stages['recovery_request_error']=type(exc).__name__
         capture=getattr(self.api,'capture_native_settings',None)
         if capture:capture()
     def snapshot(self):

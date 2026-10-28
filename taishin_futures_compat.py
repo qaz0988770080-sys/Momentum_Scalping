@@ -89,9 +89,12 @@ def summarize_sso(success,message):
 
 def connection_setting_flags(values):
     # Never return endpoints, broker/account IDs, passwords, or connection strings.
-    fields=('IP','Port','LoginID','LoginPwd','BrokerID','ClearMemberID','OnCreateRun')
+    fields=('IP','ProxyIP','Port','LoginID','LoginPwd','BrokerID','ClearMemberID','OnCreateRun')
     result={name+'_present':bool(str(values.get(name,'') or '').strip()) for name in fields}
     result['broker_allows_connection']=str(values.get('OnCreateRun','')).strip()=='Y'
+    mode=str(values.get('SrvType',''))
+    result['server_type']=mode if mode in {'stNone','stSpdySrv','stSpdyProxy'} else 'unknown'
+    result['certificate_required']=bool(values.get('NeedCA',False))
     return result
 
 
