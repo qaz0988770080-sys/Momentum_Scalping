@@ -25,3 +25,12 @@ Momentum.ico
 WebView2-LICENSE.txt
 
 MomentumDiagnostics*.dll
+
+original_mode/user-data/
+original_mode/self-test/
+original_mode/*-result.json
+original_mode/runtime.json
+original_mode/bootstrap.json
+original_mode/startup-error.txt
+original_mode/*.exe
+original_mode/*.zip

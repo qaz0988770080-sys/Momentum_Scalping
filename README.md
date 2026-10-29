@@ -67,3 +67,12 @@ python taishin_preview.py --day-trade Y --symbol 2330 --lots 2
 
 
 桌面版入口：Momentum.exe，或已建立的桌面捷徑「Momentum 台新期貨」。不再需要 CMD。詳見 [桌面 APP 說明](DESKTOP_APP_GUIDE.md)。介面與桌面啟動完成，正式交易連線與送單仍未驗收或開啟。
+
+
+## 原作者基準模式與研究草案
+
+使用者要求永久保留可回到原作者的模式。original_mode/baseline 的 11 個檔案固定於 commit 1dea51bf2592d1e0ffa88b3faf97b267c2756d6d，啟動前逐檔校驗，拒絕改檔與額外可匯入模組；原版介面與原策略僅以獨立離線設定開啟。原作者模式不讀寫台新版設定或 SDK。原版保存分支為 archive/original-author-1dea51bf。
+
+執行 python -I original_mode/original_mode.py --self-test 可驗證基準、運行複本、策略預設、LIVE 拒絕與污染拒絕；直接執行 original_mode/original_mode.py 可開啟原版 GUI，需要 Python 與 Tk。MomentumOriginal.cs 是本機免 CMD 啟動器，使用 Codex 的本機 Python runtime。詳見 [模式說明](original_mode/README_原作者模式.md)。
+
+[波段規則草案](SWING_RULES_DRAFT.md) 與其參數檔是未實作／未回測的訊號研究規格，不會改動原策略或啟動交易。[原作者一日模擬計畫](ORIGINAL_PAPER_DAY.md) 尚等待完整行情與資料適配，不代表已完成一整天模擬或取得績效。
