@@ -76,3 +76,7 @@ python taishin_preview.py --day-trade Y --symbol 2330 --lots 2
 執行 python -I original_mode/original_mode.py --self-test 可驗證基準、運行複本、策略預設、LIVE 拒絕與污染拒絕；直接執行 original_mode/original_mode.py 可開啟原版 GUI，需要 Python 與 Tk。MomentumOriginal.cs 是本機免 CMD 啟動器，使用 Codex 的本機 Python runtime。詳見 [模式說明](original_mode/README_原作者模式.md)。
 
 [波段規則草案](SWING_RULES_DRAFT.md) 與其參數檔是未實作／未回測的訊號研究規格，不會改動原策略或啟動交易。[原作者一日模擬計畫](ORIGINAL_PAPER_DAY.md) 尚等待完整行情與資料適配，不代表已完成一整天模擬或取得績效。
+
+### 股票行情前置檢查
+
+`taishin_quote_probe.py` 是獨立唯讀 TWS 行情診斷，最多檢查 5 檔股票；不接交易 SDK、不修改原作者基準。需獨立安裝官方 PY_TradeD 與 Configs，尚待真實帳戶連線；詳見 [QUOTE_PROBE.md](./QUOTE_PROBE.md)。
