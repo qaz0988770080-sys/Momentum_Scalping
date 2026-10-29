@@ -70,4 +70,34 @@ class VerificationTests(unittest.TestCase):
         self.api.send_website_verification=reject
         self.assertEqual(self.submit()['attempt']['state'],'REJECTED')
 
+    def test_expired_plan_keeps_accepted_receipt_without_allowing_resubmit(self):
+        self.submit()
+        self.plan['expires_at']=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat();self.save()
+        status=self.service.status()
+        self.assertTrue(status['plan_expired']);self.assertEqual(status['attempt']['order_no'],'TEST123')
+        self.assertEqual(status['attempt']['state'],'ACCEPTED')
+        with self.assertRaisesRegex(VerificationError,'EXPIRED'):self.service.submit(status['plan_digest'],wait=0)
+        self.assertEqual(self.sent,1)
+    def test_expired_plan_without_attempt_is_readable_but_not_submittable(self):
+        self.plan['expires_at']=(datetime.now(timezone.utc)-timedelta(seconds=1)).isoformat();self.save()
+        status=self.service.status()
+        self.assertTrue(status['plan_expired']);self.assertIsNone(status['attempt'])
+        with self.assertRaisesRegex(VerificationError,'EXPIRED'):self.service.submit(status['plan_digest'],wait=0)
+        self.assertEqual(self.sent,0)
+        with self.assertRaisesRegex(VerificationError,'EXPIRED'):read_plan(self.root/'verification-plan.json')
+    def test_matched_report_retains_actual_order_fields_without_identity_or_message(self):
+        self.submit()
+        tag='MV'+self.plan['plan_id'][:12]
+        self.service.on_report(SimpleNamespace(UserDefine=tag,OrderID='TEST123',OrderStatus=2,CumQty=0,Symbol='TESTA9',Month='202611',OriginalQty=2,OrderQty=2,OrderPrice=100.0,BSType=1,PriType=2,TimeInForce=1,PositionEffect=0,AccNo7='PRIVATE-ID',Message='SECRET'))
+        report=self.service.status()['attempt']['report']
+        self.assertEqual(report['order_fields']['OriginalQty'],2)
+        self.assertEqual(report['order_fields']['OrderPrice'],'100.0')
+        self.assertEqual(report['order_fields']['TimeInForce'],1)
+        self.assertNotIn('PRIVATE',str(report));self.assertNotIn('SECRET',str(report))
+    def test_malformed_order_details_do_not_replace_valid_acceptance(self):
+        self.submit()
+        tag='MV'+self.plan['plan_id'][:12]
+        self.service.on_report(SimpleNamespace(UserDefine=tag,OrderID='TEST123',OrderStatus=2,CumQty=0,Symbol='PRIVATE/SECRET',OrderPrice=float('nan'),OriginalQty=-1))
+        status=self.service.status()['attempt']
+        self.assertEqual(status['state'],'ACCEPTED');self.assertEqual(status['report']['order_fields'],{})
 if __name__=='__main__':unittest.main()

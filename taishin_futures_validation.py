@@ -5,7 +5,7 @@ from taishin_futures_com import pump_com_events
 from taishin_futures_compat import auth_transport_ready,initialize_optional_callbacks,configure_tls12,summarize_authorization,summarize_sso,connection_setting_flags
 
 BUILD='futures-login-20261028-r2'
-DRIVER_REVISION='explicit-transaction-recovery-r17'
+DRIVER_REVISION='verification-report-audit-r19'
 class FuturesLoginError(Exception):pass
 
 def load_sdk():
@@ -148,7 +148,14 @@ def load_sdk():
             item.TimeInForce=SpeedyAPI.TimeInForceEnum.tifROD
             item.PositionEffect=SpeedyAPI.PositionEffectEnum.peOpen
             item.TradingSessionID=SpeedyAPI.TradingSessionIDEnum.tsAuto
-            return MSpeedyAPI.GetNewOrderMessage(item)
+            message=MSpeedyAPI.GetNewOrderMessage(item)
+            if (str(message.Symbol)!=plan['symbol'] or int(message.OrderQty)!=plan['quantity']
+                    or Decimal(str(message.Price))!=Decimal(plan['price'])
+                    or int(message.Side)!=int(SpeedyAPI.SideEnum.sBuy)
+                    or int(message.OrderType)!=int(SpeedyAPI.OrderTypeEnum.otLimit)
+                    or int(message.TimeInForce)!=int(SpeedyAPI.TimeInForceEnum.tifROD)):
+                raise FuturesLoginError('VERIFICATION_NATIVE_PAYLOAD_MISMATCH')
+            return message
         def send_website_verification(self,plan,account,tag):
             # Ordinary SDK entrypoints remain blocked. This is test mode only.
             if (self.fServerKind!=TServerKind.Test or not self._momentum_test_target

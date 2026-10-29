@@ -7,7 +7,7 @@ from taishin_futures_com import pump_com_events
 
 class VerificationError(Exception):pass
 
-def read_plan(path):
+def read_plan(path, *, allow_expired=False):
     try:
         raw=json.loads(Path(path).read_text(encoding='utf-8'))
         if raw.get('source_url')!='https://mlapi.tssco.com.tw/web_api/service/twftrade-api-testing':raise ValueError()
@@ -19,12 +19,31 @@ def read_plan(path):
         if not price.is_finite() or not 0<price<1000000:raise ValueError()
         if not re.fullmatch(r'[a-f0-9]{64}',raw['account_sha256']):raise ValueError()
         expires=datetime.fromisoformat(raw['expires_at'])
-        if expires.tzinfo is None or datetime.now(timezone.utc)>=expires:raise ValueError()
+        if expires.tzinfo is None or (not allow_expired and datetime.now(timezone.utc)>=expires):raise ValueError()
         plan={k:raw[k] for k in ('plan_id','symbol','side','price_type','price','quantity','tif','account_sha256','expires_at','source_url')}
         digest=hashlib.sha256(json.dumps(plan,sort_keys=True,separators=(',',':')).encode()).hexdigest()
         return plan,digest
     except (ValueError,KeyError,TypeError,InvalidOperation,OSError):
         raise VerificationError('VERIFICATION_PLAN_INVALID_OR_EXPIRED') from None
+
+def report_details(report):
+    """Allowlisted matched-order fields; never persist broker messages or IDs."""
+    safe={}
+    for name in ('OriginalQty','OrderQty','BSType','PriType','TimeInForce','PositionEffect'):
+        try:
+            value=int(getattr(report,name))
+            if 0<=value<=1000000:safe[name]=value
+        except (AttributeError,TypeError,ValueError,OverflowError):pass
+    for name,pattern in (('Symbol',r'[A-Z0-9]{1,20}'),('Month',r'[0-9]{6}')):
+        try:
+            value=str(getattr(report,name))
+            if re.fullmatch(pattern,value):safe[name]=value
+        except (AttributeError,TypeError,ValueError):pass
+    try:
+        price=Decimal(str(report.OrderPrice))
+        if price.is_finite() and 0<=price<1000000:safe['OrderPrice']=format(price,'f')
+    except (AttributeError,TypeError,ValueError,InvalidOperation):pass
+    return safe
 
 class VerificationService:
     def __init__(self,session,private):
@@ -36,13 +55,14 @@ class VerificationService:
         self.db.execute("CREATE TABLE IF NOT EXISTS attempts (plan_id TEXT PRIMARY KEY,digest TEXT NOT NULL,tag TEXT UNIQUE NOT NULL,state TEXT NOT NULL,order_no TEXT NOT NULL DEFAULT '',report TEXT NOT NULL DEFAULT '{}')")
         self.session.report_observer=self.on_report
     def status(self):
-        plan,digest=read_plan(self.private/'verification-plan.json')
+        plan,digest=read_plan(self.private/'verification-plan.json',allow_expired=True)
+        plan_expired=datetime.now(timezone.utc)>=datetime.fromisoformat(plan['expires_at'])
         with self.lock:row=self.db.execute('SELECT * FROM attempts WHERE plan_id=?',(plan['plan_id'],)).fetchone()
         public={k:plan[k] for k in ('symbol','side','price_type','price','quantity','tif','expires_at')}
         api=self.session.api
         connected=bool(api and api.IsConn_Trade and api.IsRecoverDone and len(api.fAccList)>0)
         diagnostics=self.session.snapshot() if callable(getattr(self.session,'snapshot',None)) else {}
-        return dict(ok=True,validation_only=True,live_enabled=False,connected=connected,environment=self.session.environment,keep_session=bool(api and self.session.environment=='validation' and not connected),diagnostics=diagnostics,plan_digest=digest,plan=public,
+        return dict(ok=True,validation_only=True,live_enabled=False,connected=connected,environment=self.session.environment,keep_session=bool(api and self.session.environment=='validation' and not connected),diagnostics=diagnostics,plan_digest=digest,plan=public,plan_expired=plan_expired,
             attempt=dict(state=row['state'],order_no=row['order_no'],report=json.loads(row['report'])) if row else None)
     def require_test_connection(self,plan):
         api=self.session.api
@@ -92,5 +112,5 @@ class VerificationService:
             try:status=int(report.OrderStatus);filled=int(report.CumQty)
             except (AttributeError,TypeError,ValueError):return
             state={2:'ACCEPTED',71:'PARTIAL_FILLED',72:'FILLED',11:'REJECTED',6:'CANCELLED'}.get(status,'REPORT_RECEIVED')
-            safe=dict(status=status,filled_quantity=filled)
+            safe=dict(status=status,filled_quantity=filled,order_fields=report_details(report))
             self.db.execute('UPDATE attempts SET state=?,order_no=?,report=? WHERE plan_id=?',(state,number,json.dumps(safe),matches[0]['plan_id']))
