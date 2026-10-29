@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "status": "WAITING_FOR_COMPLETE_REAL_MARKET_DATA",
+  "strategy_mode": "ORIGINAL_STOCK_LOGIC_PAPER_DAY",
+  "source_revision": "1dea51bf2592d1e0ffa88b3faf97b267c2756d6d",
+  "live_orders_enabled": false,
+  "broker_orders_enabled": false,
+  "data_provider_preference": "TAISHIN_MARKET_DATA_ADAPTER_NOT_YET_IMPLEMENTED",
+  "trade_date": null,
+  "session_timezone": "Asia/Taipei",
+  "session": [
+    "09:00:00",
+    "13:30:00"
+  ],
+  "entry_window": [
+    "09:05:00",
+    "12:15:00"
+  ],
+  "time_exit": "13:00:00",
+  "original_strategy_parameters_unchanged": true,
+  "paper_starting_equity_ntd": 1000000,
+  "paper_account_is_synthetic": true,
+  "original_mode_settings_isolated": true,
+  "replay_directory": "Momentum-Original/user-data/api_replay",
+  "replay_available": false,
+  "required_data": [
+    "ordered_trade_events",
+    "valid_best_bid_ask_and_sizes",
+    "index_and_breadth_inputs",
+    "sector_metadata",
+    "day_trade_eligibility",
+    "event_timestamp_and_trade_date"
+  ],
+  "fee_model": null,
+  "slippage_model": null,
+  "profitability_conclusion_allowed": false,
+  "acceptance": [
+    "ZERO_LIVE_BROKER_ORDERS",
+    "ZERO_DUPLICATE_PAPER_ORDERS",
+    "TRACEABLE_SIGNAL_ORDER_FILL_EVENTS",
+    "STALE_OR_MISSING_DATA_BLOCKS_BUYS",
+    "TIME_EXIT_OR_EXPLICIT_UNFILLED_REASON",
+    "NO_FAKE_FILLS_WITHOUT_EXECUTABLE_QUOTES"
+  ]
+}
