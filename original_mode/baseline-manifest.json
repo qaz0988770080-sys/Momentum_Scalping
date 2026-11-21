@@ -1,0 +1,60 @@
+{
+  "revision": "1dea51bf2592d1e0ffa88b3faf97b267c2756d6d",
+  "files": [
+    {
+      "name": "Momentum Scalping Chinese Instruction Manual",
+      "git_blob_sha1": "7dbc37ee54ab48f9d5b7bfb6c89a2ccb3012af3e",
+      "sha256": "b5ba1dc4ea6228f320b8a0050ec176b297b9bb9f7cefceadb459ca071247e455"
+    },
+    {
+      "name": "README.md",
+      "git_blob_sha1": "3ee9d2a4633dabe64889308cda8e5b3c8f9e4486",
+      "sha256": "37283f48c42c77db9881f9a53e949de9254cb3543e17282f13409cc2e29b713b"
+    },
+    {
+      "name": "api_gateway_v2_7.py",
+      "git_blob_sha1": "5ecd6b268b9d4f38940b6b2e919b07fbb59897df",
+      "sha256": "5b7dcbd5dc1a1af2efdebe18e167af272d64d0aa6c50fb4a79e75ab0141775d0"
+    },
+    {
+      "name": "gui_v5_5.py",
+      "git_blob_sha1": "81e1b9476dfe739b2e19bd4dadfc3acd6fca9479",
+      "sha256": "11ed96449e6d919b9bb524c3dcbfaf18ce1ac0697a4ad5228e24fae570795c52"
+    },
+    {
+      "name": "intraday_v2_1.py",
+      "git_blob_sha1": "157f90308b919a6c3e4bc96ad5c9f4417674f992",
+      "sha256": "942468ac041dc752c91816183827552a1913bc812ff4bcbdd6256f0ca1a0b38c"
+    },
+    {
+      "name": "market_v1_6.py",
+      "git_blob_sha1": "0bdecea01ee28c3e44b19786501ebf7f7df6bd98",
+      "sha256": "4818b9e49ce537c12e1239cf95ae361dcb8ab749a63bb69f1c4ec54a70d95b9f"
+    },
+    {
+      "name": "params_v1_9.py",
+      "git_blob_sha1": "cf754676ab3ad68ae49fcddffd42b54b0f252ff1",
+      "sha256": "8d676874ca2a7fb6c39c9f2b61e9cda53ee4654d83d84cd98a75f620df47911a"
+    },
+    {
+      "name": "params_v2_0.md",
+      "git_blob_sha1": "b1bfe68165947b4a53b90db20222f7bd74875779",
+      "sha256": "52e0228922b4e210437afe8fba5c1d01163892fe4cd67b683ebcbc326528f038"
+    },
+    {
+      "name": "runtime_v4_1.py",
+      "git_blob_sha1": "a5b877090afdc1758fdf4c86ad4b5546f1b3890f",
+      "sha256": "b01d1e39cfbb3aea3906d3df74940ce94f8aa8fb179b4f722e6e1209d9dd6030"
+    },
+    {
+      "name": "scanner_v2_8.py",
+      "git_blob_sha1": "54890ec7d89e8bdc168dc76b7951dd5f129b0f3e",
+      "sha256": "5f870f1a81c769f04f09adfc7a8287f27f211c0c412c3ffaf404f83060f49b6f"
+    },
+    {
+      "name": "trading_v3_9.py",
+      "git_blob_sha1": "7923b3986572098b961b5536ceadc9f8d7ce3a29",
+      "sha256": "4542ec2dec5fb8a654aafeef17a841da0a1ef0708f9a3f5c9604e8fe2a408c01"
+    }
+  ]
+}

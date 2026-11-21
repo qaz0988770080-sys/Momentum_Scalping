@@ -2769,6 +2769,8 @@ class APIGateway:
         reconnect_min_seconds: float = 30.0,
         reconnect_max_seconds: float = 60.0,
         cts_com_prog_id: str = "DJTRADEOBJLibCTS.TradeApp",
+        broker: str = "TAISHIN",
+        taishin_day_trade_flag: Optional[str] = None,
         event_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> None:
         self.mode = str(mode).strip().upper()
@@ -2784,7 +2786,14 @@ class APIGateway:
             reconnect_max_seconds=reconnect_max_seconds,
             event_sink=event_sink,
         )
-        self.cts = CTSClient(mode=self.mode, com_prog_id=cts_com_prog_id)
+        if broker == "TAISHIN":
+            from taishin_adapter import TaishinClient
+            self.cts = TaishinClient(mode=self.mode, day_trade_flag=taishin_day_trade_flag)
+        elif broker == "CTS":
+            self.cts = CTSClient(mode=self.mode, com_prog_id=cts_com_prog_id)
+        else:
+            raise ValueError("broker must be TAISHIN or CTS")
+        self.broker = self.cts
         self.cts.configure_anomaly_log(Path(__file__).resolve().parent / "execution_logs")
 
     def configure_resources(self, resources):
@@ -2999,6 +3008,7 @@ def run_self_test() -> Dict[str, Any]:
     with tempfile.TemporaryDirectory() as temp_dir:
         emitted_events: List[Dict[str, Any]] = []
         gateway = APIGateway(
+            broker="CTS",  # Legacy CTS regression fixture, never a live login.
             mode="OFFLINE",
             replay_dir=temp_dir,
             freshness_seconds=25.0,

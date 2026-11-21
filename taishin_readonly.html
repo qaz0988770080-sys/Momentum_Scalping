@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Momentum · 台新唯讀驗收</title>
+<style nonce="__NONCE__">
+:root{font-family:"Microsoft JhengHei UI","Noto Sans TC",sans-serif;color:#dfe9f0;background:#101820;color-scheme:dark}
+*{box-sizing:border-box}body{margin:0;padding:28px;max-width:1180px;margin:auto}h1{font-size:25px;margin:8px 0 12px;letter-spacing:.3px}
+.eyebrow{color:#86d6c1;font-size:12px;letter-spacing:2px}.lead{color:#a6b8c4;line-height:1.75;font-size:14px;margin:0}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:24px}.pill{white-space:nowrap;background:#15392f;color:#88e3bb;border:1px solid #2b5e4c;border-radius:30px;padding:8px 13px;font-size:12px}
+.layout{display:grid;grid-template-columns:minmax(280px,360px) 1fr;gap:18px}.card{background:#16232e;border:1px solid #2a3b48;border-radius:16px;padding:23px}
+h2{font-size:17px;margin:0 0 18px}label{display:block;font-size:13px;color:#a9bdc9;margin:17px 0 7px}
+input,select{display:block;width:100%;font:inherit;padding:12px;border:1px solid #364d5e;background:#101a23;color:#edf6fb;border-radius:9px;outline:none}
+input:focus,select:focus{border-color:#71c9b0;box-shadow:0 0 0 3px #71c9b014}
+button{font:inherit;cursor:pointer;border:1px solid #3a5363;background:#213545;color:#e0edf6;border-radius:9px;padding:11px 14px}
+button.primary{width:100%;margin-top:23px;background:#81d8bf;color:#102b22;border-color:#81d8bf;font-weight:700}
+button:disabled{opacity:.4;cursor:default}.hint{font-size:12px;line-height:1.8;color:#8da6b6;margin-top:15px}
+.actions{display:flex;flex-wrap:wrap;gap:9px;margin:17px 0}#status{border-left:3px solid #81d8bf;padding:11px 14px;background:#101b24;line-height:1.7;font-size:14px;min-height:67px;border-radius:0 8px 8px 0}
+.facts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0}.fact{padding:14px;background:#101b24;border-radius:10px}.fact small{display:block;color:#8da6b6;margin-bottom:8px}.fact strong{font-size:15px;font-weight:500}
+#log{min-height:180px;max-height:340px;overflow:auto;color:#b6cbd6;font:12px/1.8 ui-monospace,monospace;white-space:pre-wrap;word-break:break-word;background:#0d1720;padding:15px;border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:16px}th,td{border-bottom:1px solid #2c3c48;text-align:right;padding:10px 5px}th:first-child,td:first-child{text-align:left}th{color:#89a6b8;font-weight:400}
+footer{color:#7591a3;font-size:12px;line-height:1.8;margin-top:20px}.empty{color:#7c99ac;padding:12px 0}
+@media(max-width:760px){body{padding:18px}.layout{grid-template-columns:1fr}header{display:block}.pill{display:inline-block;margin-top:14px}.card{padding:19px}}
+</style></head><body>
+<header><div><div class="eyebrow">MOMENTUM / TAISHIN CORE</div><h1>台新唯讀驗收</h1><p class="lead">獨立專案連線檢查。先確認登入、庫存與回報狀態。</p></div><div class="pill">唯讀模式 · 正式送單關閉</div></header>
+<div class="layout"><section class="card"><h2>本機登入</h2>
+<form id="login-form" autocomplete="off">
+<label for="environment">連線環境</label><select id="environment"><option value="formal">台新正式環境（唯讀查詢）</option><option value="validation">台新驗證環境（僅測登入）</option></select>
+<label for="username">台新登入 ID</label><input id="username" autocomplete="off" spellcheck="false" maxlength="128">
+<label for="password">登入密碼</label><input id="password" type="password" autocomplete="new-password" maxlength="4096">
+<button class="primary" id="login" type="submit" disabled>唯讀登入</button></form>
+<p class="hint">帳密只傳給本機的獨立台新程序，不會寫入檔案或傳送至 GitHub。</p>
+<label for="account">證券帳戶</label><select id="account" disabled><option>登入後選擇</option></select>
+<button id="logout" disabled type="button">登出</button> <button id="reload" type="button">重新載入連線程序</button></section>
+<section class="card"><h2>連線與資料驗收</h2><div id="status" role="status" aria-live="polite">正在啟動本機唯讀程序……</div>
+<div class="facts"><div class="fact"><small>交易主機</small><strong id="connection">尚未登入</strong></div><div class="fact"><small>委託回補完整性</small><strong>尚未通過驗證</strong></div></div>
+<div class="actions"><button id="inventory" disabled>查庫存完成狀態</button><button id="orders" disabled>觀察委託回報</button><button id="matches" disabled>觀察成交回報</button></div>
+<p class="hint" id="build">正在核對服務版本……</p><div id="holdings"></div><div id="log" aria-live="polite">本機程序不提供買進、賣出、改單或撤單功能。</div>
+</section></div><footer>只有庫存查詢明確完成，才會顯示「完成」。回報快取不等於完整委託或成交清單。<br>庫存與回報只顯示在此本機視窗；去識別驗收紀錄不保存帳號、密碼、持股或回報原文。</footer>
+<script nonce="__NONCE__">
+const csrf="__CSRF__", el=id=>document.getElementById(id);
+let connected=false,ready=false,busy=false;
+function acceptState(result){ready=!!result.worker_ready&&result.server_build==="readonly-web-20261028-r4"&&result.worker_build==="readonly-20261028-r4";text("build","網頁："+(result.server_build||"舊版，請重啟服務")+" / 連線："+(result.worker_build||"未確認"));return ready}
+function text(id,value){el(id).textContent=value}
+function log(value){const box=el("log");box.textContent+= "\n"+new Date().toLocaleTimeString()+"  "+value;if(box.textContent.length>20000)box.textContent=box.textContent.slice(-15000);box.scrollTop=box.scrollHeight}
+function controls(){el("reload").disabled=busy;el("login").disabled=!ready||connected||busy;el("logout").disabled=!connected||busy;el("environment").disabled=connected||busy;el("account").disabled=!connected||busy;
+["inventory","orders","matches"].forEach(id=>el(id).disabled=!connected||busy||el("environment").value!=="formal");
+text("connection",connected?"唯讀連線已就緒":"尚未登入")}
+async function call(action,data={}){busy=true;controls();try{const response=await fetch("/api/"+action,{method:"POST",headers:{"Content-Type":"application/json","X-Momentum-CSRF":csrf},body:JSON.stringify(data)});
+const result=await response.json();if(result.connected!==undefined)connected=!!result.connected;
+if(result.kind==="error"||result.error&&result.row_count===undefined||!response.ok){text("status","本次操作未通過："+(result.error||"REQUEST_FAILED"));log(result.error||"REQUEST_FAILED");return result}
+return result}catch(e){text("status","本機程序未回覆，請重新開啟此頁。");connected=false;return null}finally{busy=false;controls()}}
+el("login-form").addEventListener("submit",async event=>{event.preventDefault();const data={username:el("username").value.trim(),password:el("password").value,environment:el("environment").value};if(!data.username||!data.password){text("status","請在此輸入台新 ID 與密碼。");return}
+text("status","等待台新登入、憑證與交易主機就緒；不會送單。");const pending=call("login",data);data.username="";data.password="";el("username").value="";el("password").value="";const result=await pending;
+if(result?.kind==="login"&&result.ok){connected=!!result.connected;el("account").replaceChildren();(result.accounts||[]).forEach((account,i)=>{const option=document.createElement("option");option.value=i;option.textContent=account;el("account").append(option)});
+text("status",result.environment==="validation"?"驗證環境登入成功；此環境不提供庫存、委託與成交查詢。":"正式環境唯讀登入成功，可以查詢庫存。");log("交易主機已就緒。環境："+result.environment);controls()}});
+el("inventory").addEventListener("click",async()=>{text("status","等待這次庫存查詢的完整回覆……");const result=await call("inventory",{account_index:Number(el("account").value)});if(result?.kind==="inventory"&&result.complete){text("status","庫存查詢完成；可賣量與整體交易對帳仍未驗證。");log("庫存 "+result.row_count+" 筆；"+result.completion_evidence);
+const table=document.createElement("table"),header=table.insertRow();["商品","現股欄位（股）","零股欄位（股）"].forEach(t=>{const th=document.createElement("th");th.textContent=t;header.append(th)});
+(result.rows||[]).forEach(row=>{const tr=table.insertRow();[row.symbol,row.quantity_shares,row.odd_shares].forEach(v=>{const cell=tr.insertCell();cell.textContent=v})});el("holdings").replaceChildren(table)}});
+["orders","matches"].forEach(action=>el(action).addEventListener("click",async()=>{const result=await call(action,{account_index:Number(el("account").value)});if(result?.row_count!==undefined){text("status","觀測到 "+result.row_count+" 筆回報；尚不能宣告券商清單完整。");log(result.error||"OBSERVATION_ONLY")}}));
+el("logout").addEventListener("click",async()=>{await call("logout");connected=false;el("account").replaceChildren();el("holdings").replaceChildren();el("log").textContent="已清除本頁顯示的帳戶資料。";text("status","已登出。");controls()});
+el("reload").addEventListener("click",async()=>{const result=await call("logout");if(result?.kind==="logout"){connected=false;ready=true;el("account").replaceChildren();el("holdings").replaceChildren();text("status","正在重新建立唯讀程序……");try{const state=await fetch("/api/state").then(r=>r.json());acceptState(state);text("status",ready?"唯讀程序版本核對完成，現在可以登入。":state.error||"程序未就緒");log("已結束舊的唯讀連線程序並重新建立。")}catch(e){ready=false;text("status","重新建立程序失敗。")}controls()}});
+fetch("/api/state").then(r=>r.json()).then(result=>{acceptState(result);connected=!!result.connected;text("status",ready?"本機程序已就緒，請在左側唯讀登入。":result.error||"程序未就緒");if(connected){el("account").replaceChildren();(result.accounts||[]).forEach((a,i)=>{let o=document.createElement("option");o.value=i;o.textContent=a;el("account").append(o)})}controls()}).catch(()=>text("status","無法連接本機程序。"));
+</script></body></html>

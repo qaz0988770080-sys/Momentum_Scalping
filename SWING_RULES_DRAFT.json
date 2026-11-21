@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "status": "DRAFT_NOT_IMPLEMENTED_OR_BACKTESTED",
+  "execution_mode": "SIGNALS_ONLY",
+  "live_orders_enabled": false,
+  "original_baseline_revision": "1dea51bf2592d1e0ffa88b3faf97b267c2756d6d",
+  "signal_instrument": "0050",
+  "execution_instrument": "SRF",
+  "signal_series": "point_in_time_adjusted_etf_daily",
+  "execution_risk_series": "actual_delivery_contract_full_trading_day_ohlc",
+  "long_only": true,
+  "pyramiding": false,
+  "partial_profit_taking": false,
+  "manage_existing_manual_positions": false,
+  "risk": {
+    "atr_period": 14,
+    "risk_per_trade_equity_pct": 0.25,
+    "portfolio_open_risk_equity_pct": 0.75,
+    "margin_utilization_equity_pct_cap": 25,
+    "required_contract_metadata": true,
+    "required_broker_equity_and_positions": true,
+    "fee_schedule": null,
+    "fees_required_for_sizing": true,
+    "base_slippage_ticks_per_side": 2,
+    "stress_slippage_ticks_per_side": [
+      4,
+      6
+    ],
+    "round_quantity": "FLOOR_SKIP_IF_ZERO"
+  },
+  "entry": {
+    "decision": "AFTER_COMPLETED_UNDERLYING_DAILY_BAR",
+    "fill_timing": "NEXT_TAIFEX_TRADING_DAY_0905_TO_0930",
+    "max_positive_gap_atr": 0.5,
+    "max_entry_spread_ticks": 2,
+    "quote_freshness_seconds": 3,
+    "max_marketable_limit_offset_ticks": 2,
+    "one_campaign_per_instrument": true
+  },
+  "expiry": {
+    "min_trading_days_to_expiry_for_new_entry": 5,
+    "flatten_trading_days_before_expiry": 5,
+    "live_automatic_rollover_enabled": false
+  },
+  "profiles": {
+    "short": {
+      "target_holding_trading_days": [
+        3,
+        10
+      ],
+      "fast_ma_days": 20,
+      "slow_ma_days": 60,
+      "slow_ma_rising_lookback_days": 5,
+      "breakout_lookback_days": 10,
+      "exit_ema_days": 10,
+      "initial_stop_atr": 2,
+      "trailing_stop_atr": 2.5,
+      "max_holding_trading_days": 10
+    },
+    "medium": {
+      "target_holding_trading_days": [
+        10,
+        30
+      ],
+      "fast_ma_days": 50,
+      "slow_ma_days": 120,
+      "slow_ma_rising_lookback_days": 5,
+      "breakout_lookback_days": 20,
+      "exit_ema_days": 20,
+      "initial_stop_atr": 3,
+      "trailing_stop_atr": 3.5,
+      "max_holding_trading_days": 30
+    }
+  },
+  "comparison": {
+    "holding_period_only": [
+      5,
+      10,
+      20,
+      30
+    ],
+    "fixed_model": {
+      "fast_ma_days": 20,
+      "slow_ma_days": 60,
+      "breakout_lookback_days": 20,
+      "initial_stop_atr": 2.5,
+      "trailing_stop_atr": 3,
+      "exit_ema_days": 10
+    },
+    "same_data_and_costs": true,
+    "walk_forward_required": true
+  },
+  "operational_blocks": [
+    "NO_VERIFIED_OVERNIGHT_PROTECTION",
+    "MISSING_HISTORY_OR_CORPORATE_ACTION_ADJUSTMENTS",
+    "MISSING_COST_PROFILE",
+    "MISSING_BROKER_ACCOUNT_OR_CONTRACT_METADATA"
+  ],
+  "rollover_policy": "FLATTEN_BEFORE_EXPIRY_AND_REQUIRE_NEW_SIGNAL_ON_NEW_CONTRACT"
+}
