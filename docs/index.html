@@ -1,4 +1,4 @@
-<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>期貨波段作戰表 V3.4</title><style>body{font:16px system-ui;background:#f3f5f8;color:#172334;margin:0}main{max-width:1100px;margin:auto;padding:20px}section{background:white;padding:20px;border-radius:12px;margin:14px 0;border:1px solid #dce2e8}h1,h2{margin:0 0 16px}h2{font-size:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}label{display:block;font-size:14px;color:#526176}input[type=number],select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccd4df;border-radius:6px;font:inherit}input[type=range]{width:100%;accent-color:#245d9e}button{padding:9px 14px;border:1px solid #ccd4df;background:white;border-radius:6px;cursor:pointer}b{color:#172334}.plus{color:#087c48}.minus{color:#b42335}.warn{color:#946200}.big{font-size:32px;font-weight:700;text-align:center}.scroll{overflow:auto}table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;white-space:nowrap}th,td{padding:10px 8px;border-bottom:1px solid #e2e7ed;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{background:#edf2f7;font-size:13px}small,p{color:#526176;line-height:1.6}.metric{background:#f3f6fa;padding:12px;border-radius:8px}.metric b{display:block;font-size:24px}summary{cursor:pointer;font-weight:bold} .riskhead{margin-top:22px;border-top:1px solid #dce2e8;padding-top:18px}.riskgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.riskitem{border:1px solid #cdd9d3;border-radius:8px;padding:12px;background:#f5faf7}.riskitem.bad{border:2px solid #b42335;background:#fff1f2}.riskitem.off{background:#f3f5f8;border-color:#ccd4df}.riskitem strong{display:block;font-size:21px;margin:6px 0}.riskitem.bad strong,.riskitem.bad .status{color:#b42335}.status{font-size:13px;font-weight:700}.riskitem p{margin:6px 0;font-size:14px}.riskresult{padding:14px;border:1px solid #ccd4df;border-radius:8px;margin:12px 0}.riskresult.bad{border:2px solid #b42335;background:#fff1f2}.riskresult h3{margin:0 0 8px}</style><main><h1>波段交易作戰表 V3.4</h1><p>自適應趨勢整合版｜研究模擬，不連線下單。價格尺度自適應｜切換商品或修改進場價會重設價格距離；預填價格僅為示例。股票期貨跳動單位可能隨價格級距變動，請核對並手動設定；本版採固定跳動單位模擬。指定市場狀態、持續創高後單向反轉；不代表實際行情或成交。</p><section><h2>① 選擇交易策略</h2><div class="grid" id="modes"></div></section><section><h2>② 初始交易設定</h2><div class="grid" id="base"></div><div id="marginSource"></div><div id="risk"></div></section><section><h2>③ 拖拉行情最高價格</h2><div class="big" id="high"></div><div id="target"></div><div id="quick"></div></section><section><h2>④ 加碼及移動停損設定</h2><div id="switches"></div><div id="stops"></div><details open><summary>自由調整進階風控</summary><div id="gates"></div></details></section><div id="output"></div><section><button id="reset">恢復預設策略</button> <button id="csv">下載完整交易表 CSV</button><p>成本於平倉扣除；固定初始R不含成本。風控只阻擋新增，並非盤中強制減碼。未模擬跳空成交、追繳、其他持倉或完整技術訊號。</p></section></main><script>
+<!doctype html><html lang="zh-Hant"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>期貨波段作戰表 V3.5</title><style>body{font:16px system-ui;background:#f3f5f8;color:#172334;margin:0}main{max-width:1100px;margin:auto;padding:20px}section{background:white;padding:20px;border-radius:12px;margin:14px 0;border:1px solid #dce2e8}h1,h2{margin:0 0 16px}h2{font-size:20px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}label{display:block;font-size:14px;color:#526176}input[type=number],select{width:100%;box-sizing:border-box;padding:9px;border:1px solid #ccd4df;border-radius:6px;font:inherit}input[type=range]{width:100%;accent-color:#245d9e}button{padding:9px 14px;border:1px solid #ccd4df;background:white;border-radius:6px;cursor:pointer}b{color:#172334}.plus{color:#087c48}.minus{color:#b42335}.warn{color:#946200}.big{font-size:32px;font-weight:700;text-align:center}.scroll{overflow:auto}table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;white-space:nowrap}th,td{padding:10px 8px;border-bottom:1px solid #e2e7ed;text-align:right}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{background:#edf2f7;font-size:13px}small,p{color:#526176;line-height:1.6}.metric{background:#f3f6fa;padding:12px;border-radius:8px}.metric b{display:block;font-size:24px}summary{cursor:pointer;font-weight:bold} .riskhead{margin-top:22px;border-top:1px solid #dce2e8;padding-top:18px}.riskgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.riskitem{border:1px solid #cdd9d3;border-radius:8px;padding:12px;background:#f5faf7}.riskitem.bad{border:2px solid #b42335;background:#fff1f2}.riskitem.off{background:#f3f5f8;border-color:#ccd4df}.riskitem strong{display:block;font-size:21px;margin:6px 0}.riskitem.bad strong,.riskitem.bad .status{color:#b42335}.status{font-size:13px;font-weight:700}.riskitem p{margin:6px 0;font-size:14px}.riskresult{padding:14px;border:1px solid #ccd4df;border-radius:8px;margin:12px 0}.riskresult.bad{border:2px solid #b42335;background:#fff1f2}.riskresult h3{margin:0 0 8px}</style><main><h1>波段交易作戰表 V3.5</h1><p><a href="#continuation">跳至實戰手動續算</a>｜原 V3.4 模擬功能保留。</p><p>自適應趨勢整合版｜研究模擬，不連線下單。價格尺度自適應｜切換商品或修改進場價會重設價格距離；預填價格僅為示例。股票期貨跳動單位可能隨價格級距變動，請核對並手動設定；本版採固定跳動單位模擬。指定市場狀態、持續創高後單向反轉；不代表實際行情或成交。</p><section><h2>① 選擇交易策略</h2><div class="grid" id="modes"></div></section><section><h2>② 初始交易設定</h2><div class="grid" id="base"></div><div id="marginSource"></div><div id="risk"></div></section><section><h2>③ 拖拉行情最高價格</h2><div class="big" id="high"></div><div id="target"></div><div id="quick"></div></section><section><h2>④ 加碼及移動停損設定</h2><div id="switches"></div><div id="stops"></div><details open><summary>自由調整進階風控</summary><div id="gates"></div></details></section><section id="continuation"><h2>實戰手動續算 V3.5</h2><p>原模擬器不變。僅限單一多單策略、無其他持倉與出入金。以實際成交與券商權益為準；只更新已觀察價格，不會自動成交、下單或取得行情。已持倉者請勿將目前權益當成原始本金；從原始設定建立後按時間順序補登成交及行情，或匯入既有帳本。</p><button id="rsStart">以目前初始設定新建帳本</button> <button id="rsExport">匯出帳本 JSON</button> <button id="rsImport">匯入帳本 JSON</button><input id="rsFile" type="file" accept=".json,application/json" hidden><p id="rsMsg" role="status"></p><div id="rsBody"></div></section><div id="output"></div><section><button id="reset">恢復預設策略</button> <button id="csv">下載完整交易表 CSV</button><p>成本於平倉扣除；固定初始R不含成本。風控只阻擋新增，並非盤中強制減碼。未模擬跳空成交、追繳、其他持倉或完整技術訊號。</p></section></main><script>
 const products={TMF:["微台",10,35050,26900],TX:["大台",200,701000,538000],MTX:["小台",50,175250,134500],TE:["電子期貨",4000,978000,750000],ZEF:["小型電子",500,122250,93750],TF:["金融期貨",1000,158000,122000],ZFF:["小型金融",250,39500,30500],NYF:["0050期貨",10000,87000,67000],SRF:["小型0050期貨",1000,8700,6700],VHF:["富邦科技ETF",10000,56000,43000],PFF:["0056期貨",10000,30000,23000],SSF:["小型0056期貨",1000,3000,2300],stock:["股票期貨（自選級距）",2000,13.5,10.35],mini:["小型股票期貨（自選級距）",100,13.5,10.35],custom:["其他商品／手動",10,35050,26900]};
 function margins(v,p){return v.marginType==='ratio'?[Math.ceil(p*v.m*v.ir/100),Math.ceil(p*v.m*v.mr/100)]:[v.im,v.mm]}
 const defaults={product:"TMF",marginType:"fixed",tier:"1",ir:13.5,mr:10.35,tick:1,increment:50,c:400000,i:36000,q:5,m:10,im:35050,mm:26900,h:41450,is:800,core:1250,attack:800,atr:350,step:500,add:1,lev:5.5,keep:30,stress:30,margin:60,maint:175,reuse:30,dd:10,fee:300,maxq:15,mode:'adaptive',market:'strong',dynamic:true,atrMode:false,strict:false,detail:false,drop:0,entryRisk:1,entryRiskEnabled:false};const keys=['lev','keep','stress','margin','maint','reuse','dd','maxq'];let v={...defaults},enabled=Object.fromEntries(keys.map(k=>[k,true])),lastResult;
@@ -23,4 +23,132 @@ function renderEntry(){const x=entryCheck(v,enabled),el=$('risk');if(!x){el.inne
 function render(){const r=lastResult=simulate(v,enabled);$('high').textContent=fmt(v.h);const [mi,mm]=margins(v,v.i);$('marginSource').innerHTML=`<p>期交所公告快照（查詢 2026-11-22；股票級距表更新 2026-11-17、ETF 2026-11-02）。非即時報價，券商可能加收。<a href="https://www.taifex.com.tw/cht/5/indexMargingDetail">指數類</a> ｜ <a href="https://www.taifex.com.tw/cht/5/stockMarginingDetail">股票及ETF類</a>。股票級距請自行核對個別商品；手動修改數值不代表官方標準。</p>${metrics([['進場每口原始',fmt(mi)],['進場每口維持',fmt(mm)],['總原始保證金',fmt(mi*v.q)],['總維持保證金',fmt(mm*v.q)]])}`;renderEntry();for(const k of keys){const el=document.querySelector(`input[data-k="${k}"]`);if(el)el.disabled=!enabled[k]||(k==='keep'&&v.dynamic)}if(!r){$('output').innerHTML='<section class="warn">請輸入有效參數。</section>';return}const {end,water,rows,exits,bs}=r,final=v.c+end.lock;const warning=r.init.risk>v.c*.01||r.init.im>v.margin||r.init.l>v.lev||r.init.gap>v.stress?`<p class="warn">初始風險 ${dec(r.init.risk/v.c*100)}%，初始部位可能不符合限制，僅依指定倉位模擬。</p>`:'';$('output').innerHTML=`<section><h2>⑤ 交易結果</h2>${warning}${metrics([['最高帳戶權益',fmt(water)],['累積獲利R',dec((water-v.c)/r.R)+'R'],['已實現損益',fmt(r.rr)],['未實現損益',fmt(end.f)],['剩餘口數',end.q+'口'],['實際槓桿',dec(end.l)+'倍'],['目前維持率',fmt(end.mm)+'%'],['目前要求獲利保留',enabled.keep?r.ratio+'%':'不限'],['原始保證金占用',dec(end.im)+'%'],['目前每口原始',fmt(end.imUnit)],['目前每口維持',fmt(end.mmUnit)],['5%跳空損失',dec(end.gap)+'%']])}<p>再次加碼限制：${r.reason.join('、')||'通過已啟用條件'}｜核心距離 ${r.D}點｜攻擊距離 ${r.A}點</p></section><section><h2>⑥ 完整交易指令表</h2>${cb('detail','顯示每次檢查紀錄')}${table(['點位','操作指令','剩餘口數','核心停損','加碼停損'],[...rows.map(a=>[fmt(a.p),action(a),a.q,fmt(a.cs),a.as==null?'—':fmt(a.as)]),['—','假設見頂後反轉','—','—','—'],...exits.map(a=>[fmt(a.p),`<span class="minus">−${a.n}口 ${a.remain?'減碼':'全數離場'}</span>`,a.remain,a.cs==null?'—':fmt(a.cs),a.as==null?'—':fmt(a.as)])])}<h2 style="margin-top:20px">各階段權益與槓桿</h2>${table(['點位','操作','權益（萬）','槓桿','維持率','每口原始','每口維持','保護獲利（萬）'],rows.map(a=>[fmt(a.p),action(a),dec(a.e/10000),dec(a.l),fmt(a.mm)+'%',fmt(a.imUnit),fmt(a.mmUnit),dec(a.lock/10000)]))}</section><section><h2>⑦ 見頂時各批次獨立停損</h2>${table(['部位','口數','成本','停損','保護損益'],[...bs.map(b=>[b.name,b.q,fmt(b.e),fmt(b.s),fmt(((b.s-b.e)*v.m-v.fee)*b.q)]),['已實現','—','—','—',fmt(r.rr)],['合計',end.q,'—','—',fmt(end.lock)]])}<h2 style="margin-top:20px">反轉離場明細</h2>${table(['點位','動作','剩餘口數','權益','槓桿','維持率'],exits.map(a=>[fmt(a.p),`<span class="minus">−${a.n}口 ${a.remain?'減碼':'全數離場'}</span>`,a.remain,fmt(a.e),dec(a.l),a.remain?fmt(a.mm)+'%':'—']))}</section><section><h2>⑧ 手動測試反轉行情</h2>${range('drop','從最高價回跌',0,Math.min(v.h-v.tick,Math.max(v.i*.15,r.D+v.tick,r.A+v.tick)),v.tick,'')}<div id="live"></div></section><section><h2>⑨ 全部出場結果</h2><div class="big minus">${fmt(exits.at(-1).p)} 點全數離場</div>${metrics([['最終帳戶權益',fmt(final)],['最終淨獲利',fmt(end.lock)],['本金報酬率',dec(end.lock/v.c*100)+'%'],['見頂至離場回撤',dec((water-final)/water*100)+'%'],['最高獲利保留率',water>v.c?dec(end.lock/(water-v.c)*100)+'%':'—']])}</section>`;live()}
 function live(){const r=lastResult;if(!r)return;const p=Math.max(v.tick,roundPrice(v.h-v.drop)),q=r.bs.reduce((a,b)=>a+(p>b.s?b.q:0),0),e=v.c+r.rr+r.bs.reduce((a,b)=>a+((Math.max(p,b.s)-b.e)*v.m-(p<=b.s?v.fee:0))*b.q,0);$('live').innerHTML=metrics([['反轉價格',fmt(p)],['剩餘口數',q+'口'],['目前帳戶權益',fmt(e)],['目前權益回撤',dec((r.water-e)/r.water*100)+'%']])}
 if(typeof document!=='undefined'){function handle(e){let el=e.target;if(e.type==='input'&&el.type==='number')return;if(e.type==='change'&&el.type!=='number')return;let k=el.dataset.k;if(el.dataset.g){enabled[el.dataset.g]=el.checked;render();return}if(!k)return;v[k]=el.type==='checkbox'?el.checked:el.tagName==='SELECT'?el.value:Number(el.value);if(k==='product'){const a=products[v.product];v.m=a[1];if(v.product!=='custom'){const seed=['TX','MTX','TMF'].includes(v.product)?36000:indexProducts.includes(v.product)?1000:50;resetScale(seed,tickFor(v.product));}v.marginType=['stock','mini'].includes(v.product)?'ratio':'fixed';if(v.marginType==='ratio'){v.ir=a[2];v.mr=a[3];v.tier='1'}else{v.im=a[2];v.mm=a[3]}setup();return}if(k==='tier'){const a={1:[13.5,10.35],2:[16.2,12.42],3:[20.25,15.53]}[v.tier];if(a)[v.ir,v.mr]=a;setup();return}if(k==='marginType'){setup();return}if(k==='i'||k==='tick'){if(el.value===''||!(v.i>v.tick&&v.tick>0))return;resetScale(v.i,v.tick);setup();return}if(['h','is','core','attack','atr','step','increment'].includes(k)){v[k]=Math.max(v.tick,up(v[k],v.tick));if(k==='h'){v.h=Math.max(v.i,v.h);v.drop=0;}document.querySelectorAll(`input[data-k="${k}"]`).forEach(a=>{if(a!==el)a.value=v[k]});if(el.type==='number'){setup();return}}if($('val_'+k))$('val_'+k).textContent=v[k]+(el.dataset.unit||'');if(k==='drop'){live();return}if(k==='atrMode'||k==='dynamic'||k==='strict')setup();else render()}document.addEventListener('input',handle);document.addEventListener('change',handle);document.addEventListener('click',e=>{if(e.target.dataset.rise!==undefined){v.h=roundPrice(v.i+Number(e.target.dataset.rise));v.drop=0;setup()}});$('reset').onclick=()=>{v={...defaults};enabled=Object.fromEntries(keys.map(k=>[k,true]));setup()};$('csv').onclick=()=>{if(!lastResult)return;const r=lastResult,lines=[['階段','點位','動作','口數變動','剩餘口數','核心停損','加碼停損','權益','槓桿','維持率','保護獲利'],...r.rows.map(a=>['上漲',a.p,a.action,a.delta,a.q,a.cs,a.as??'',a.e,a.l,a.mm,a.lock]),...r.exits.map(a=>['反轉',a.p,a.remain?'減碼':'全數離場',-a.n,a.remain,a.cs??'',a.as??'',a.e,a.l,a.mm,''])];const blob=new Blob(['\ufeff'+lines.map(a=>a.join(',')).join('\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='波段作戰表.csv';a.click();URL.revokeObjectURL(url)};setup()}
+
+function resumeStart(v,g){
+  const n=Number, valid=["c","i","q","m","tick","is","core","attack","atr","step","increment","add","lev","keep","stress","margin","maint","reuse","dd","fee","maxq","im","mm","ir","mr","entryRisk"].every(k=>Number.isFinite(v[k]));
+  if(!valid||v.c<=0||v.i<=v.is||v.is<=0||v.m<=0||v.tick<=0||v.core<=0||v.attack<=0||v.atr<=0||v.step<=0||v.increment<v.tick||!Number.isInteger(v.q)||v.q<1||v.q>100||!Number.isInteger(v.add)||v.add<1||v.add>100||v.fee<0||!["adaptive","pyramid"].includes(v.mode)||!["range","normal","strong"].includes(v.market)||!["fixed","ratio"].includes(v.marginType))throw Error("初始設定無效");
+  const [im,mm]=resumeMargins(v,v.i);if(!(im>=mm&&mm>0))throw Error("保證金設定無效");
+  const stop=resumeDown(v.i-v.is,v.tick);if(stop<=0)throw Error("初始停損無效");
+  return {schema:1,v:{...v},g:{...g},price:v.i,eq:v.c,peakEq:v.c,peakProfit:0,high:v.i,real:0,used:0,last:v.i,serial:0,bs:[{id:0,e:v.i,q:v.q,s:stop,hit:false}],done:{1:0,2:0,3:0},stale:false,log:[{type:"初始實際成交",p:v.i,q:v.q,id:0}]};
+}
+function resumeDown(x,t){return Number((Math.floor(x/t+1e-8)*t).toFixed(8))}
+function resumeUp(x,t){return Number((Math.ceil(x/t-1e-8)*t).toFixed(8))}
+function resumeMargins(v,p){return v.marginType==="ratio"?[Math.ceil(p*v.m*v.ir/100),Math.ceil(p*v.m*v.mr/100)]:[v.im,v.mm]}
+function resumeDistances(v){return [v.atrMode?resumeUp(v.atr*({range:2,normal:2.5,strong:3.5}[v.market]),v.tick):v.core,v.atrMode?resumeUp(v.atr*2,v.tick):v.attack]}
+function resumeStats(s,p=s.price,bs=s.bs,real=s.real,eq=s.eq){
+ const v=s.v,q=bs.reduce((a,b)=>a+b.q,0),f=bs.reduce((a,b)=>a+(p-b.e)*b.q*v.m,0),profit=real+f,lock=real+bs.reduce((a,b)=>a+((b.s-b.e)*v.m-v.fee)*b.q,0),[im,mm]=resumeMargins(v,p),risk=bs.reduce((a,b)=>a+b.q*(Math.max(0,(b.e-b.s)*v.m)+v.fee),0),gap=q*(p*v.m*.05+v.fee);
+ return {q,f,profit,lock,eq,im,mm,risk,gap,lev:q*p*v.m/eq,margin:q*im/eq*100,maint:q?eq/(q*mm)*100:Infinity,dd:(s.peakEq-(eq+lock-profit))/s.peakEq*100};
+}
+function resumeTargets(s){
+ const v=s.v, core=s.bs.find(b=>b.id===0),parts={range:[[1,.4],[2,.4]],normal:[[1,.2],[2,.2],[3,.2]],strong:[[2,.2],[3,.2]]}[v.market];
+ return v.mode==="adaptive"?parts.map(([r,f])=>{const target=Math.floor(v.q*f),left=Math.max(0,Math.min((core?.q||0)-1,target-s.done[r]));return {r,price:resumeUp(v.i+r*v.is,v.tick),target,left}}).filter(a=>a.left>0):[];
+}
+function resumeMark(s,p,eq){
+ if(!Number.isFinite(p)||p<=0||!Number.isFinite(eq))throw Error("請輸入有效價格與實際權益");
+ const v=s.v;if(Math.abs(p-resumeDown(p,v.tick))>1e-7)throw Error("價格不符合設定的最小跳動單位");
+ const [D,A]=resumeDistances(v);
+ for(const b of s.bs){if(p<=b.s)b.hit=true;if(!b.hit)b.s=Math.max(b.s,resumeDown(p-(b.id===0?D:A),v.tick))}
+ s.price=p;s.eq=eq;s.high=Math.max(s.high,p);s.peakEq=Math.max(s.peakEq,eq);s.peakProfit=Math.max(s.peakProfit,resumeStats(s).profit);s.stale=false;s.log.push({type:"更新行情與權益",p,eq});
+}
+function resumeGate(s,p,qty=s.v.add){
+ const v=s.v,g=s.g,[,A]=resumeDistances(v),cur=resumeStats(s),projectEq=s.eq+(p-s.price)*cur.q*v.m;
+ const existing=s.bs.map(b=>({...b,s:b.hit?b.s:Math.max(b.s,resumeDown(p-(b.id===0?resumeDistances(v)[0]:A),v.tick))}));
+ const b={id:s.serial+1,e:p,q:qty,s:resumeDown(p-A,v.tick),hit:false},n=resumeStats(s,p,[...existing,b],s.real,projectEq);
+ const r0=v.q*v.is*v.m,peakP=Math.max(s.peakProfit,cur.profit,n.profit),peakE=Math.max(s.peakEq,projectEq),r=peakP/r0,ratio=v.dynamic?(r>=20?85:r>=12?80:r>=8?70:r>=5?60:r>=3?50:r>=2?30:0):v.keep,floor=v.dynamic&&r<1?-Infinity:Math.max(0,peakP*ratio/100),cost=qty*((p-b.s)*v.m+v.fee),fail=[];
+ if(s.stale)fail.push("先更新成交後權益與行情");
+ if(!s.bs.some(b=>b.id===0))fail.push("核心倉已離場");
+ if(s.bs.some(b=>b.hit||s.price<=b.s))fail.push("既有停損待處理");
+ if(v.mode==="adaptive"&&v.market!=="strong")fail.push("市場狀態");
+ if(p+1e-8<s.last+v.step)fail.push("加碼間距");
+ if(p<s.price)fail.push("不得以低於目前價格的假設加碼");
+ if(n.profit<=0||projectEq<=0)fail.push("尚無獲利或權益不足");
+ if(resumeTargets(s).some(t=>t.price<=p))fail.push("先確認R停利成交");
+ if(g.lev&&n.lev>(v.strict?Math.min(v.lev,3.5):v.lev))fail.push("槓桿");
+ if(g.keep&&n.lock<floor)fail.push("獲利保護");
+ if(g.margin&&n.margin>v.margin)fail.push("保證金");
+ if(n.q*n.im>projectEq)fail.push("基本保證金不足");
+ if(g.maint&&n.maint<v.maint)fail.push("維持率");
+ if(g.stress&&(n.gap/projectEq*100>v.stress||projectEq-n.gap<n.q*n.mm))fail.push("跳空壓力");
+ if(g.reuse&&s.used+cost>Math.max(0,peakP)*v.reuse/100)fail.push("浮盈預算");
+ if(g.dd&&(peakE-(projectEq+n.lock-n.profit))/peakE*100>v.dd)fail.push("回撤");
+ if(g.maxq&&n.q>v.maxq)fail.push("口數上限");
+ const initialRisk=v.q*((v.i-resumeDown(v.i-v.is,v.tick))*v.m+v.fee);
+ if(v.strict&&(initialRisk>v.c*.01||n.risk>projectEq*.015))fail.push("完整R風控（簡化）");
+ if(n.q>500||b.s<=0||!(qty>0&&Number.isInteger(qty)))fail.push("模擬上限");
+ return {b,n,fail,cost,ratio,floor,peakP,peakE};
+}
+function resumeFill(s,type,p,q,id,fee,r=0){
+ const v=s.v;if(!Number.isFinite(p)||p<=0||Math.abs(p-resumeDown(p,v.tick))>1e-7||!Number.isInteger(q)||q<1||q>500||!Number.isFinite(fee)||fee<0)throw Error("成交價、口數或成本無效");
+ if(type==="add"){
+   if(!s.bs.some(b=>b.id===0))throw Error("核心倉已離場，請建立新交易");
+   const [,A]=resumeDistances(v),stop=resumeDown(p-A,v.tick);if(stop<=0)throw Error("加碼停損無效");
+   s.bs.push({id:++s.serial,e:p,q,s:stop,hit:false});s.used+=q*((p-stop)*v.m+v.fee);s.last=p;s.real-=fee;s.log.push({type:"實際加碼",p,q,id:s.serial,fee,stop});
+ }else if(type==="close"){
+   const b=s.bs.find(a=>a.id===id);if(!b||q>b.q)throw Error("平倉口數超過該批持倉");
+   if(r){const t=resumeTargets(s).find(a=>a.r===r);if(id!==0||!t||q>t.left)throw Error("R停利口數或批次不符");s.done[r]+=q}
+   s.real+=(p-b.e)*q*v.m-fee;b.q-=q;s.bs=s.bs.filter(a=>a.q>0);s.log.push({type:r?`${r}R實際停利`:"實際平倉",p,q,id,fee});
+ }else throw Error("未知成交類別");
+ s.stale=true;
+}
+function resumeForecast(s,target){
+ const a=JSON.parse(JSON.stringify(s)),out=[],v=a.v;
+ if(a.stale||!a.bs.length||a.bs.some(b=>b.hit||a.price<=b.s))return out;
+ let p=a.price;
+ if(!Number.isFinite(target)||target<p||(target-p)/v.increment>20000)throw Error("預測最高價無效或步數超過限制");
+ for(let i=0;i<20001&&p<target;i++){
+   let x=Math.min(target,Number((p+v.increment).toFixed(8)));
+   const t=resumeTargets(a).filter(t=>t.price>p&&t.price<x).sort((x,y)=>x.price-y.price)[0];if(t)x=t.price;
+   if(x<=p)break;
+   const eq=a.eq+(x-p)*resumeStats(a).q*v.m;resumeMark(a,x,eq);p=x;
+   const due=resumeTargets(a).filter(t=>t.price<=p);
+   if(due.length){for(const t of due){const q=t.left;resumeFill(a,"close",p,q,0,q*v.fee,t.r);resumeMark(a,p,a.eq-q*v.fee);out.push({p,action:`${t.r}R 假設停利`,q:-q,s:resumeStats(a),cs:a.bs.find(b=>b.id===0)?.s,as:a.bs.filter(b=>b.id!==0).at(-1)?.s})}continue}
+   const g=resumeGate(a,p);
+   if(!g.fail.length){resumeFill(a,"add",p,v.add,0,0);resumeMark(a,p,a.eq);out.push({p,action:"假設浮盈加碼",q:v.add,s:resumeStats(a),cs:a.bs.find(b=>b.id===0)?.s,as:a.bs.filter(b=>b.id!==0).at(-1)?.s})}
+ }
+ return out;
+}
+function resumeValidate(s){
+ if(!s||s.schema!==1||!s.v||!s.g||!Array.isArray(s.bs)||!Array.isArray(s.log)||!s.done)throw Error("續算檔案格式錯誤");
+ resumeStart(s.v,s.g);
+ for(const k of ["price","eq","peakEq","peakProfit","high","real","used","last","serial"])if(!Number.isFinite(s[k]))throw Error("續算數值不完整");
+ if(s.price<=0||s.peakEq<Math.max(s.eq,s.v.c)||s.peakProfit<0||s.used<0||s.high<s.price||s.last<=0||!Number.isInteger(s.serial)||s.serial<0||typeof s.stale!=="boolean")throw Error("續算歷史數值不合理");
+ if(s.bs.length>500||s.log.length>100000||new Set(s.bs.map(b=>b.id)).size!==s.bs.length||s.bs.some(b=>!Number.isInteger(b.id)||b.id<0||b.id>s.serial||!Number.isFinite(b.e)||b.e<=0||!Number.isFinite(b.s)||b.s<=0||!Number.isInteger(b.q)||b.q<=0||b.q>500||typeof b.hit!=="boolean"))throw Error("持倉批次不合理");
+ for(const k of [1,2,3])if(!Number.isInteger(s.done[k])||s.done[k]<0||s.done[k]>s.v.q)throw Error("R停利紀錄不合理");
+ for(const k of ["lev","keep","stress","margin","maint","reuse","dd","maxq"])if(typeof s.g[k]!=="boolean")throw Error("風控開關不完整");
+ return s;
+}
+
+const RSKEY="Momentum_Scalping.resume.v1";let rs=null;
+const rsEl=id=>document.getElementById(id);
+function rsMsg(t,bad=false){rsEl("rsMsg").textContent=t;rsEl("rsMsg").className=bad?"minus":"plus"}
+function rsSave(){try{localStorage.setItem(RSKEY,JSON.stringify(rs));return true}catch(e){rsMsg("本機儲存失敗，請立即匯出帳本備份。",true);return false}}
+function rsRun(fn,msg){try{const draft=JSON.parse(JSON.stringify(rs));fn(draft);resumeValidate(draft);rs=draft;const saved=rsSave();rsRender();if(saved)rsMsg(msg)}catch(e){rsMsg(e.message,true)}}
+function rsNumber(id){const el=rsEl(id);if(!el||el.value.trim()==="")throw Error("請填寫全部必要欄位");const n=Number(el.value);if(!Number.isFinite(n))throw Error("請輸入有效數字");return n}
+function rsRender(){
+ const el=rsEl("rsBody");if(!rs){el.innerHTML="<p>尚無帳本。請先完成上方初始交易設定，再新建帳本。</p>";return}
+ const s=rs,v=s.v,a=resumeStats(s),R=v.q*v.is*v.m,dist=resumeDistances(v),candidates=resumeTargets(s),pending=s.bs.some(b=>b.hit||s.price<=b.s),p=resumeUp(Math.max(s.price,s.last+v.step),v.tick),gate=resumeGate(s,p);
+ const ratio=v.dynamic?retention(s.peakProfit/R):v.keep;
+ el.innerHTML=metrics([["原始本金",fmt(v.c)],["原始整筆1R",fmt(R)],["實際最新權益",fmt(s.eq)],["歷史最高權益",fmt(s.peakEq)],["策略累積損益",fmt(a.profit)],["已實現損益",fmt(s.real)],["未實現損益",fmt(a.f)],["餘倉",a.q+"口"],["觀察最高價格",fmt(s.high)],["高峰策略獲利R",dec(s.peakProfit/R)+"R"],["累積使用加碼預算",fmt(s.used)],["帳戶高峰回撤",dec((s.peakEq-s.eq)/s.peakEq*100)+"%"],["停損後保護損益（估）",fmt(a.lock)],["計畫回撤（估）",dec(a.dd)+"%"],["名目槓桿",dec(a.lev)+"倍"],["維持率（估）",dec(a.maint)+"%"],["原始保證金占用（估）",dec(a.margin)+"%"],["浮盈保留要求",s.g.keep?ratio+"%":"不限"]])+
+ '<p>已鎖定原始商品、R、模式及風控設定；上方模擬器的調整不會改寫帳本。核心距離 '+fmt(dist[0])+'，加碼距離 '+fmt(dist[1])+'。權益與策略損益之差（相對原始本金） '+fmt(s.eq-v.c-a.profit)+' 元；可能來自費用或資料不同步，若有其他持倉或出入金請勿使用本續算判斷加碼。</p>'+
+ (s.stale?'<p class="minus">有新成交尚未更新實際價格及權益，暫停加碼試算。</p>':'')+(pending?'<p class="minus">已觀察到停損觸發；仍保留實際庫存直到登記平倉，禁止新增加碼。反彈不會自動解除。</p>':'')+
+ (!s.bs.some(b=>b.id===0)?'<p class="warn">核心倉已離場，不能再加碼；如仍有加碼倉請繼續登記平倉。</p>':'')+
+ '<h3>① 更新目前實際行情</h3><div class="grid"><label>目前價格<input id="rsPrice" type="number" step="any" value="'+s.price+'"></label><label>券商最新帳戶權益（已含浮盈）<input id="rsEq" type="number" step="any" value="'+s.eq+'"></label></div><button id="rsMark">更新並保留歷史</button>'+
+ '<h3>② 實際持倉與成交登記</h3>'+table(["批次","口數","成本","目前停損","狀態"],s.bs.map(b=>[b.id?"加碼"+b.id:"核心倉",b.q,fmt(b.e),fmt(b.s),b.hit?"停損待成交":"持有"]))+
+ '<div class="grid"><label>成交動作<select id="rsType"><option value="add">加碼買進</option><option value="close">平倉賣出</option></select></label><label>平倉批次<select id="rsBatch">'+s.bs.map(b=>'<option value="'+b.id+'">'+(b.id?"加碼"+b.id:"核心倉")+'</option>').join("")+'</select></label><label>成交價<input type="number" step="any" id="rsFillP" value="'+s.price+'"></label><label>成交口數<input type="number" min="1" step="1" id="rsQty" value="1"></label><label>本次實際總成本（元）<input type="number" min="0" step="any" id="rsFee" value="0"></label><label>平倉原因<select id="rsR"><option value="0">一般減碼／停損</option>'+candidates.map(t=>'<option value="'+t.r+'">'+t.r+'R 停利</option>').join("")+'</select></label></div><button id="rsFill">登記已確認實際成交</button><p>成交後務必再更新券商權益；不要將試算指令當成成交。費用輸入本次實際費用，與原版出場成本緩衝分開。</p>'+
+ '<h3>③ 後續操作參考（不會寫入帳本）</h3>'+table(["未完成R停利","目標價格","待平口數"],candidates.map(t=>[t.r+"R",fmt(t.price),t.left]))+
+ '<p>下一個最低間距候選價：<b>'+fmt(p)+'</b>；假設一路上漲到此價、加碼 '+v.add+' 口：'+(gate.fail.length?'<span class="warn">'+gate.fail.join("、")+'</span>':'<span class="plus">通過目前已啟用門檻</span>')+'。新倉候選停損 '+fmt(gate.b.s)+'，新增預估成本風險 '+fmt(gate.cost)+' 元。非交易訊號。</p>'+
+ '<div class="grid"><label>未來假設最高價<input id="rsTarget" type="number" step="any" value="'+resumeUp(s.price+v.step*5,v.tick)+'"></label></div><button id="rsForecast">產生後續試算表</button><div id="rsPlan"></div>'+
+ '<h3>④ 最近交易歷史</h3>'+table(["動作","價格","口數","權益／費用"],s.log.slice(-30).reverse().map(l=>[String(l.type).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])),fmt(l.p),l.q??"—",fmt(l.eq??l.fee??NaN)]))+
+ '<p>資料僅儲存在本瀏覽器，換裝置需匯出／匯入；清除網站資料會遺失。價格級距、保證金、滑價及跳空須自行核對，未觀察到的盤中高低點不會自動補齊。</p>';
+ rsEl("rsMark").onclick=()=>rsRun(d=>resumeMark(d,rsNumber("rsPrice"),rsNumber("rsEq")),"已更新，原始R與歷史高峰未重置。");
+ rsEl("rsFill").onclick=()=>{if(!confirm("確認這是券商已成交的紀錄，而非預計操作？"))return;rsRun(d=>resumeFill(d,rsEl("rsType").value,rsNumber("rsFillP"),rsNumber("rsQty"),Number(rsEl("rsBatch").value),rsNumber("rsFee"),Number(rsEl("rsR").value)),"成交已登記，請更新最新權益。")};
+ rsEl("rsForecast").onclick=()=>{try{const target=rsNumber("rsTarget");if(s.stale||pending||!s.bs.some(b=>b.id===0))throw Error("請先處理成交、停損或核心倉狀態。");const rows=resumeForecast(s,target);rsEl("rsPlan").innerHTML=rows.length?table(["假設價格","假設動作","變動口數","餘倉","核心停損","加碼停損","預估權益"],rows.map(r=>[fmt(r.p),r.action,r.q,r.s.q,fmt(r.cs),fmt(r.as),fmt(r.s.eq)])):"<p>此假設區間沒有符合條件的新增或停利。</p>";}catch(e){rsMsg(e.message,true)}};
+}
+rsEl("rsStart").onclick=()=>{if(rs&&!confirm("將取代當前帳本。請先匯出備份，確定要建立全新交易？"))return;if(!confirm("確認上方為原始進場設定，不是目前浮盈後的權益？"))return;try{rs=resumeStart(v,enabled);const saved=rsSave();rsRender();if(saved)rsMsg("新交易帳本已建立，後續更新不會重設。")}catch(e){rsMsg(e.message,true)}};
+rsEl("rsExport").onclick=()=>{if(!rs)return rsMsg("尚無帳本",true);const url=URL.createObjectURL(new Blob([JSON.stringify(rs,null,2)],{type:"application/json"}));const a=document.createElement("a");a.href=url;a.download="swing-resume-backup.json";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+rsEl("rsImport").onclick=()=>rsEl("rsFile").click();
+rsEl("rsFile").onchange=async e=>{try{const f=e.target.files[0];if(!f)return;if(f.size>5000000)throw Error("備份檔案過大");const next=resumeValidate(JSON.parse(await f.text()));if(rs&&!confirm("匯入將取代目前帳本，確定？"))return;rs=next;const saved=rsSave();rsRender();if(saved)rsMsg("帳本已匯入")}catch(err){rsMsg(err.message,true)}finally{e.target.value=""}};
+try{const raw=localStorage.getItem(RSKEY);if(raw)rs=resumeValidate(JSON.parse(raw))}catch(e){rsMsg("無法載入本機帳本："+e.message,true)}
+rsRender();
+
 </script></html>
